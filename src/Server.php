@@ -54,7 +54,7 @@ class Server
             'definition' => [
                 'name'        => $name,
                 'description' => $fullDescription,
-                'inputSchema' => $inputSchema,
+                'inputSchema' => $this->normalizeSchema($inputSchema),
             ],
             'handler'  => $handler,
             'mutating' => $mutating,
@@ -165,6 +165,15 @@ class Server
             'content' => [['type' => 'text', 'text' => $text]],
             'isError'  => false,
         ]);
+    }
+
+    private function normalizeSchema(array $schema): array
+    {
+        if (isset($schema['properties']) && is_array($schema['properties']) && empty($schema['properties'])) {
+            $schema['properties'] = new \stdClass();
+        }
+
+        return $schema;
     }
 
     private function okResponse(mixed $id, array $result): array
