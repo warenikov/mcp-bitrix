@@ -25,7 +25,8 @@ curl -sL https://raw.githubusercontent.com/warenikov/mcp-bitrix/main/install.sh 
 
 Скрипт автоматически:
 - скачает Docker-образ `ghcr.io/warenikov/mcp-bitrix`
-- создаст `.mcp.json` в текущей папке
+- определит Docker-сеть проекта
+- создаст `.mcp.json` и `.claude/settings.json` в текущей папке
 
 После этого **перезапустите Claude Code** — сервер подключится автоматически.
 
@@ -47,6 +48,20 @@ curl -sL https://raw.githubusercontent.com/warenikov/mcp-bitrix/main/install.sh 
 ```
 
 Замените `/путь/к/проекту` на абсолютный путь к папке с вашим Битриксом (где лежит `bitrix/`).
+
+Если Битрикс работает в Docker — добавьте `--network` с именем сети вашего проекта:
+
+```json
+"args": ["run", "--rm", "-i", "--network", "myproject_default", "-v", "/путь/к/проекту:/var/www/html", "ghcr.io/warenikov/mcp-bitrix:latest"]
+```
+
+Создайте `.claude/settings.json`:
+
+```json
+{
+  "enabledMcpjsonServers": ["bitrix"]
+}
+```
 
 Перезапустите Claude Code.
 
