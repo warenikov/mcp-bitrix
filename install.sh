@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
+IMAGE="ghcr.io/warenikov/mcp-bitrix:latest"
+
 BOLD='\033[1m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -24,87 +26,66 @@ fi
 
 echo -e "${GREEN}✓ Docker запущен${NC}"
 
-# --- Ищем PHP-контейнер с Битриксом ---
+# --- Скачиваем образ ---
 echo ""
-echo "Ищу PHP-контейнеры..."
-
-PHP_CONTAINERS=$(docker ps --format "{{.Names}}" | grep -i php || true)
-
-if [ -z "$PHP_CONTAINERS" ]; then
-  echo -e "${RED}✗ Не найдено запущенных PHP-контейнеров.${NC}"
-  echo "  Убедитесь что ваш Битрикс-проект запущен (docker compose up -d)"
-  exit 1
-fi
-
-CONTAINER_COUNT=$(echo "$PHP_CONTAINERS" | wc -l | tr -d ' ')
-
-if [ "$CONTAINER_COUNT" -eq 1 ]; then
-  CONTAINER=$(echo "$PHP_CONTAINERS" | tr -d '[:space:]')
-  echo -e "${GREEN}✓ Найден контейнер: ${BOLD}$CONTAINER${NC}"
+echo "Скачиваю образ $IMAGE..."
+if docker pull "$IMAGE"; then
+  echo -e "${GREEN}✓ Образ загружен${NC}"
 else
-  echo "Найдено несколько PHP-контейнеров:"
-  echo "$PHP_CONTAINERS" | nl -w2 -s') '
-  echo ""
-  read -p "Введите номер нужного контейнера: " CHOICE
-  CONTAINER=$(echo "$PHP_CONTAINERS" | sed -n "${CHOICE}p" | tr -d '[:space:]')
-  if [ -z "$CONTAINER" ]; then
-    echo -e "${RED}✗ Неверный выбор.${NC}"
-    exit 1
-  fi
-fi
-
-# --- Проверяем composer в контейнере ---
-echo ""
-if ! docker exec "$CONTAINER" composer --version &>/dev/null; then
-  echo -e "${RED}✗ Composer не найден в контейнере $CONTAINER.${NC}"
-  echo ""
-  echo "  Добавьте в Dockerfile вашего PHP-контейнера:"
-  echo "  COPY --from=composer:latest /usr/bin/composer /usr/bin/composer"
-  echo ""
-  echo "  Затем пересоберите образ:"
-  echo "  docker compose build php && docker compose up -d php"
+  echo -e "${RED}✗ Не удалось скачать образ.${NC}"
   exit 1
 fi
 
-echo -e "${GREEN}✓ Composer найден${NC}"
-
-# --- Определяем document root ---
-DOCUMENT_ROOT=$(docker exec "$CONTAINER" sh -c 'echo ${DOCUMENT_ROOT:-/var/www/html}')
-echo -e "${GREEN}✓ Document root: $DOCUMENT_ROOT${NC}"
-
-# --- Устанавливаем пакет ---
+# --- Определяем путь к проекту ---
+PROJECT_PATH="$(pwd)"
 echo ""
-echo "Устанавливаю warenikov/mcp-bitrix..."
-echo ""
-
-if docker exec "$CONTAINER" composer require warenikov/mcp-bitrix --working-dir "$DOCUMENT_ROOT"; then
-  echo ""
-  echo -e "${GREEN}✓ Пакет установлен${NC}"
-else
-  echo -e "${RED}✗ Ошибка установки пакета.${NC}"
-  exit 1
-fi
+echo -e "${GREEN}✓ Путь к проекту: ${BOLD}$PROJECT_PATH${NC}"
 
 # --- Генерируем .mcp.json ---
-echo ""
 MCP_FILE=".mcp.json"
 
+ENTRY='{"command":"docker","args":["run","--rm","-i","-v","'"$PROJECT_PATH"':/var/www/html","'"$IMAGE"'"]}'
+
 if [ -f "$MCP_FILE" ]; then
-  # Файл существует — добавляем сервер через python/node если доступны
-  echo -e "${YELLOW}⚠ Файл $MCP_FILE уже существует.${NC}"
-  echo "  Добавьте вручную в секцию mcpServers:"
   echo ""
-  echo '  "bitrix": {'
-  echo "    \"command\": \"docker\","
-  echo "    \"args\": [\"exec\", \"-i\", \"$CONTAINER\", \"php\", \"$DOCUMENT_ROOT/vendor/bin/server\"]"
-  echo '  }'
+  echo -e "${YELLOW}⚠ Файл $MCP_FILE уже существует.${NC}"
+
+  # Пробуем добавить через python3
+  if command -v python3 &>/dev/null; then
+    python3 - "$MCP_FILE" "$ENTRY" <<'PYEOF'
+import json, sys
+
+path = sys.argv[1]
+entry = json.loads(sys.argv[2])
+
+with open(path) as f:
+    data = json.load(f)
+
+if "mcpServers" not in data:
+    data["mcpServers"] = {}
+
+data["mcpServers"]["bitrix"] = entry
+
+with open(path, "w") as f:
+    json.dump(data, f, indent=2, ensure_ascii=False)
+    f.write("\n")
+PYEOF
+    echo -e "${GREEN}✓ Сервер bitrix добавлен в $MCP_FILE${NC}"
+  else
+    echo "  Добавьте вручную в секцию mcpServers:"
+    echo ""
+    echo '  "bitrix": {'
+    echo '    "command": "docker",'
+    echo "    \"args\": [\"run\", \"--rm\", \"-i\", \"-v\", \"$PROJECT_PATH:/var/www/html\", \"$IMAGE\"]"
+    echo '  }'
+  fi
 else
   cat > "$MCP_FILE" <<EOF
 {
   "mcpServers": {
     "bitrix": {
       "command": "docker",
-      "args": ["exec", "-i", "$CONTAINER", "php", "$DOCUMENT_ROOT/vendor/bin/server"]
+      "args": ["run", "--rm", "-i", "-v", "$PROJECT_PATH:/var/www/html", "$IMAGE"]
     }
   }
 }
@@ -120,6 +101,6 @@ echo ""
 echo "Следующий шаг:"
 echo -e "  Перезапустите ${BOLD}Claude Code${NC} чтобы подключить MCP-сервер."
 echo ""
-echo "Для включения режима только чтения добавьте в .mcp.json:"
-echo "  \"env\": { \"BITRIX_READONLY\": \"true\" }"
+echo "Опционально — режим только чтения (безопасно для продакшена):"
+echo '  Добавьте в .mcp.json: "env": { "BITRIX_READONLY": "true" }'
 echo ""
