@@ -60,7 +60,8 @@ class IblockElementTools
                 ],
                 'required'   => ['iblock_id', 'name'],
             ],
-            handler: [$self, 'addElement']
+            handler: [$self, 'addElement'],
+            mutating: true
         );
 
         $server->addTool(
@@ -81,7 +82,8 @@ class IblockElementTools
                 ],
                 'required'   => ['id'],
             ],
-            handler: [$self, 'updateElement']
+            handler: [$self, 'updateElement'],
+            mutating: true
         );
 
         $server->addTool(
@@ -94,7 +96,8 @@ class IblockElementTools
                 ],
                 'required'   => ['id'],
             ],
-            handler: [$self, 'deleteElement']
+            handler: [$self, 'deleteElement'],
+            mutating: true
         );
     }
 

@@ -50,7 +50,8 @@ class IblockTools
                 ],
                 'required'   => ['name', 'code', 'type'],
             ],
-            handler: [$self, 'createIblock']
+            handler: [$self, 'createIblock'],
+            mutating: true
         );
 
         $server->addTool(
@@ -68,7 +69,8 @@ class IblockTools
                 ],
                 'required'   => ['id'],
             ],
-            handler: [$self, 'updateIblock']
+            handler: [$self, 'updateIblock'],
+            mutating: true
         );
 
         $server->addTool(
@@ -81,7 +83,8 @@ class IblockTools
                 ],
                 'required'   => ['id'],
             ],
-            handler: [$self, 'deleteIblock']
+            handler: [$self, 'deleteIblock'],
+            mutating: true
         );
     }
 

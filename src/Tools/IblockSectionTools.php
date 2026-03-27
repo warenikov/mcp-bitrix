@@ -40,7 +40,8 @@ class IblockSectionTools
                 ],
                 'required'   => ['iblock_id', 'name'],
             ],
-            handler: [$self, 'addSection']
+            handler: [$self, 'addSection'],
+            mutating: true
         );
 
         $server->addTool(
@@ -59,7 +60,8 @@ class IblockSectionTools
                 ],
                 'required'   => ['id', 'iblock_id'],
             ],
-            handler: [$self, 'updateSection']
+            handler: [$self, 'updateSection'],
+            mutating: true
         );
 
         $server->addTool(
@@ -73,7 +75,8 @@ class IblockSectionTools
                 ],
                 'required'   => ['id', 'iblock_id'],
             ],
-            handler: [$self, 'deleteSection']
+            handler: [$self, 'deleteSection'],
+            mutating: true
         );
     }
 

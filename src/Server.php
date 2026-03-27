@@ -13,11 +13,14 @@ class Server
     private const VERSION = '1.0.0';
     private const PROTOCOL_VERSION = '2024-11-05';
 
-    /** @var array<string, array{definition: array, handler: callable}> */
+    /** @var array<string, array{definition: array, handler: callable, mutating: bool}> */
     private array $tools = [];
+
+    private bool $readonly;
 
     public function __construct()
     {
+        $this->readonly = filter_var(getenv('BITRIX_READONLY'), FILTER_VALIDATE_BOOLEAN);
         BitrixBootstrap::init();
         $this->registerTools();
     }
@@ -31,15 +34,25 @@ class Server
         IblockElementTools::register($this);
     }
 
-    public function addTool(string $name, string $description, array $inputSchema, callable $handler): void
-    {
+    public function addTool(
+        string $name,
+        string $description,
+        array $inputSchema,
+        callable $handler,
+        bool $mutating = false
+    ): void {
+        $fullDescription = $mutating && $this->readonly
+            ? '[READONLY] ' . $description
+            : $description;
+
         $this->tools[$name] = [
             'definition' => [
                 'name'        => $name,
-                'description' => $description,
+                'description' => $fullDescription,
                 'inputSchema' => $inputSchema,
             ],
-            'handler' => $handler,
+            'handler'  => $handler,
+            'mutating' => $mutating,
         ];
     }
 
@@ -114,6 +127,13 @@ class Server
 
         if (!isset($this->tools[$name])) {
             return $this->errorResponse($id, -32602, "Unknown tool: {$name}");
+        }
+
+        if ($this->readonly && $this->tools[$name]['mutating']) {
+            return $this->okResponse($id, [
+                'content' => [['type' => 'text', 'text' => "Сервер запущен в режиме readonly. Операция «{$name}» запрещена."]],
+                'isError'  => true,
+            ]);
         }
 
         // Перехватываем любой вывод из Битрикса во время вызова инструмента

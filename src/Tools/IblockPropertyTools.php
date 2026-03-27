@@ -44,7 +44,8 @@ class IblockPropertyTools
                 ],
                 'required'   => ['iblock_id', 'name', 'code', 'property_type'],
             ],
-            handler: [$self, 'addProperty']
+            handler: [$self, 'addProperty'],
+            mutating: true
         );
 
         $server->addTool(
@@ -63,7 +64,8 @@ class IblockPropertyTools
                 ],
                 'required'   => ['id'],
             ],
-            handler: [$self, 'updateProperty']
+            handler: [$self, 'updateProperty'],
+            mutating: true
         );
 
         $server->addTool(
@@ -76,7 +78,8 @@ class IblockPropertyTools
                 ],
                 'required'   => ['id'],
             ],
-            handler: [$self, 'deleteProperty']
+            handler: [$self, 'deleteProperty'],
+            mutating: true
         );
     }
 
