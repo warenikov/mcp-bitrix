@@ -180,7 +180,7 @@ class ServerTest extends TestCase
             name: 'broken_tool',
             description: 'Always throws',
             inputSchema: ['type' => 'object', 'properties' => []],
-            handler: function (array $args): never {
+            handler: function (array $args): array {
                 throw new \RuntimeException('Something went wrong');
             }
         );
