@@ -159,6 +159,18 @@ curl -sL https://raw.githubusercontent.com/warenikov/mcp-bitrix/main/install.sh 
 
 ---
 
+## Обновление
+
+Чтобы обновить сервер до последней версии:
+
+```bash
+docker pull ghcr.io/warenikov/mcp-bitrix:latest
+```
+
+Перезапускать Claude Code после этого не нужно — образ подтянется при следующем вызове инструмента.
+
+---
+
 ## Как это работает
 
 ```
