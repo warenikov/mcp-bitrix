@@ -134,6 +134,41 @@ PYEOF
   echo -e "${GREEN}✓ Создан $MCP_FILE${NC}"
 fi
 
+# --- Создаём .claude/settings.json ---
+CLAUDE_DIR=".claude"
+SETTINGS_FILE="$CLAUDE_DIR/settings.json"
+
+mkdir -p "$CLAUDE_DIR"
+
+if [ -f "$SETTINGS_FILE" ]; then
+  if command -v python3 &>/dev/null; then
+    python3 - "$SETTINGS_FILE" <<'PYEOF'
+import json, sys
+
+path = sys.argv[1]
+
+with open(path) as f:
+    data = json.load(f)
+
+servers = data.get("enabledMcpjsonServers", [])
+if "bitrix" not in servers:
+    servers.append("bitrix")
+    data["enabledMcpjsonServers"] = servers
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+PYEOF
+    echo -e "${GREEN}✓ bitrix добавлен в $SETTINGS_FILE${NC}"
+  fi
+else
+  cat > "$SETTINGS_FILE" <<'EOF'
+{
+  "enabledMcpjsonServers": ["bitrix"]
+}
+EOF
+  echo -e "${GREEN}✓ Создан $SETTINGS_FILE${NC}"
+fi
+
 # --- Готово ---
 echo ""
 echo "─────────────────────────────────────"
