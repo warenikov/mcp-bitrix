@@ -1,0 +1,21 @@
+#!/usr/bin/env php
+<?php
+
+// Все ошибки PHP — в stderr, чтобы не засорять stdout (JSON-RPC поток)
+ini_set('display_errors', 'stderr');
+ini_set('log_errors', 'On');
+error_reporting(E_ALL);
+
+// Поддержка двух режимов:
+// 1. Установлен через composer: vendor/warenikov/mcp-bitrix/bin/server
+// 2. Standalone разработка: bin/server
+$autoload = file_exists(__DIR__ . '/../../../autoload.php')
+    ? __DIR__ . '/../../../autoload.php'
+    : __DIR__ . '/../vendor/autoload.php';
+
+require $autoload;
+
+use Warenikov\McpBitrix\Server;
+
+$server = new Server();
+$server->run();

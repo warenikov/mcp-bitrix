@@ -1,0 +1,15 @@
+{
+    "name": "warenikov/mcp-bitrix",
+    "description": "MCP server for Bitrix CMS — manage iblocks, highload, users, ORM via Claude",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Warenikov\\McpBitrix\\": "src/"
+        }
+    },
+    "bin": ["bin/server"]
+}
