@@ -26,7 +26,11 @@ RUN apt-get update && apt-get install -y \
         exif \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
 COPY . /opt/mcp-bitrix
 WORKDIR /opt/mcp-bitrix
+
+RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 
 CMD ["php", "/opt/mcp-bitrix/bin/server"]
