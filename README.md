@@ -1,15 +1,17 @@
 # mcp-bitrix
 
 [![Tests](https://github.com/warenikov/mcp-bitrix/actions/workflows/tests.yml/badge.svg)](https://github.com/warenikov/mcp-bitrix/actions/workflows/tests.yml)
+[![Docker](https://github.com/warenikov/mcp-bitrix/actions/workflows/docker.yml/badge.svg)](https://github.com/warenikov/mcp-bitrix/actions/workflows/docker.yml)
 
 MCP-сервер для управления Битриксом через Claude. Позволяет создавать инфоблоки, управлять элементами, работать с пользователями и многое другое — прямо из чата.
 
 ## Требования
 
 - Битрикс CMS (любая версия с поддержкой D7)
-- Docker с запущенным PHP-контейнером
-- Composer внутри PHP-контейнера
+- Docker
 - [Claude Code](https://claude.ai/code)
+
+PHP на хосте **не нужен** — сервер запускается в собственном Docker-контейнере.
 
 ## Установка
 
@@ -22,8 +24,7 @@ curl -sL https://raw.githubusercontent.com/warenikov/mcp-bitrix/main/install.sh 
 ```
 
 Скрипт автоматически:
-- найдёт ваш PHP-контейнер
-- установит пакет через composer
+- скачает Docker-образ `ghcr.io/warenikov/mcp-bitrix`
 - создаст `.mcp.json` в текущей папке
 
 После этого **перезапустите Claude Code** — сервер подключится автоматически.
@@ -32,44 +33,22 @@ curl -sL https://raw.githubusercontent.com/warenikov/mcp-bitrix/main/install.sh 
 
 ### Ручная установка
 
-Если предпочитаете делать всё самостоятельно:
-
-**1. Убедитесь что в PHP-контейнере есть Composer**
-
-Добавьте в `Dockerfile` вашего PHP-сервиса:
-
-```dockerfile
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-```
-
-Пересоберите:
-
-```bash
-docker compose build php && docker compose up -d php
-```
-
-**2. Установите пакет внутри контейнера**
-
-```bash
-docker exec ИМЯ_КОНТЕЙНЕРА composer require warenikov/mcp-bitrix
-```
-
-Имя контейнера можно узнать командой `docker ps`.
-
-**3. Создайте `.mcp.json` в корне проекта**
+Создайте `.mcp.json` в корне проекта:
 
 ```json
 {
   "mcpServers": {
     "bitrix": {
       "command": "docker",
-      "args": ["exec", "-i", "ИМЯ_КОНТЕЙНЕРА", "php", "/var/www/html/vendor/bin/server"]
+      "args": ["run", "--rm", "-i", "-v", "/путь/к/проекту:/var/www/html", "ghcr.io/warenikov/mcp-bitrix:latest"]
     }
   }
 }
 ```
 
-**4. Перезапустите Claude Code**
+Замените `/путь/к/проекту` на абсолютный путь к папке с вашим Битриксом (где лежит `bitrix/`).
+
+Перезапустите Claude Code.
 
 ---
 
@@ -84,7 +63,7 @@ docker exec ИМЯ_КОНТЕЙНЕРА composer require warenikov/mcp-bitrix
   "mcpServers": {
     "bitrix": {
       "command": "docker",
-      "args": ["exec", "-i", "ИМЯ_КОНТЕЙНЕРА", "php", "/var/www/html/vendor/bin/server"],
+      "args": ["run", "--rm", "-i", "-v", "/путь/к/проекту:/var/www/html", "ghcr.io/warenikov/mcp-bitrix:latest"],
       "env": {
         "BITRIX_READONLY": "true"
       }
@@ -95,12 +74,12 @@ docker exec ИМЯ_КОНТЕЙНЕРА composer require warenikov/mcp-bitrix
 
 В этом режиме все операции создания, обновления и удаления заблокированы.
 
-### Нестандартный путь к сайту
+### Нестандартный путь к сайту внутри контейнера
 
-Если Битрикс установлен не в `/var/www/html`, укажите путь:
+Если Битрикс смонтирован не в `/var/www/html`:
 
 ```json
-"args": ["exec", "-i", "ИМЯ_КОНТЕЙНЕРА", "-e", "BITRIX_DOCUMENT_ROOT=/var/www/mysite", "php", "/var/www/mysite/vendor/bin/server"]
+"args": ["run", "--rm", "-i", "-e", "BITRIX_DOCUMENT_ROOT=/var/www/mysite", "-v", "/путь/к/проекту:/var/www/mysite", "ghcr.io/warenikov/mcp-bitrix:latest"]
 ```
 
 ---
@@ -168,10 +147,10 @@ docker exec ИМЯ_КОНТЕЙНЕРА composer require warenikov/mcp-bitrix
 ## Как это работает
 
 ```
-Claude → MCP protocol (stdio) → docker exec -i {container} php vendor/bin/server → Bitrix PHP API → JSON
+Claude → MCP protocol (stdio) → docker run --rm -i -v /project:/var/www/html ghcr.io/warenikov/mcp-bitrix → Bitrix PHP API → JSON
 ```
 
-Сервер запускается внутри Docker-контейнера через `docker exec`. PHP-процесс напрямую инициализирует ядро Битрикса и вызывает его API. Никаких внешних зависимостей — MCP-протокол реализован без сторонних библиотек.
+При каждом вызове инструмента Claude запускает одноразовый Docker-контейнер, который монтирует папку вашего проекта и напрямую обращается к ядру Битрикса. Никаких внешних зависимостей — MCP-протокол реализован без сторонних библиотек.
 
 ## Лицензия
 
