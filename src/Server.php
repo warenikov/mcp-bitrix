@@ -21,11 +21,16 @@ class Server
     public function __construct()
     {
         $this->readonly = filter_var(getenv('BITRIX_READONLY'), FILTER_VALIDATE_BOOLEAN);
-        BitrixBootstrap::init();
+        $this->bootstrap();
         $this->registerTools();
     }
 
-    private function registerTools(): void
+    protected function bootstrap(): void
+    {
+        BitrixBootstrap::init();
+    }
+
+    protected function registerTools(): void
     {
         IblockTypeTools::register($this);
         IblockTools::register($this);
@@ -58,7 +63,12 @@ class Server
 
     public function run(): void
     {
-        while (($line = fgets(STDIN)) !== false) {
+        $this->runOnStreams(STDIN, STDOUT);
+    }
+
+    public function runOnStreams(mixed $input, mixed $output): void
+    {
+        while (($line = fgets($input)) !== false) {
             $line = trim($line);
             if ($line === '') {
                 continue;
@@ -71,8 +81,8 @@ class Server
 
             $response = $this->dispatch($request);
             if ($response !== null) {
-                fwrite(STDOUT, json_encode($response, JSON_UNESCAPED_UNICODE) . "\n");
-                fflush(STDOUT);
+                fwrite($output, json_encode($response, JSON_UNESCAPED_UNICODE) . "\n");
+                fflush($output);
             }
         }
     }
