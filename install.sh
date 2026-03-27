@@ -41,16 +41,58 @@ PROJECT_PATH="$(pwd)"
 echo ""
 echo -e "${GREEN}✓ Путь к проекту: ${BOLD}$PROJECT_PATH${NC}"
 
+# --- Определяем Docker-сеть проекта ---
+NETWORK=""
+
+# Ищем docker-compose.yml и вычисляем имя сети по имени папки
+if [ -f "docker-compose.yml" ] || [ -f "docker-compose.yaml" ]; then
+  PROJECT_NAME=$(basename "$PROJECT_PATH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g')
+  CANDIDATE="${PROJECT_NAME}_default"
+  if docker network inspect "$CANDIDATE" &>/dev/null; then
+    NETWORK="$CANDIDATE"
+    echo -e "${GREEN}✓ Docker-сеть: ${BOLD}$NETWORK${NC}"
+  fi
+fi
+
+# Если не нашли — ищем контейнер, у которого смонтирован наш путь
+if [ -z "$NETWORK" ]; then
+  CONTAINER_WITH_MOUNT=$(docker ps --quiet | while read -r cid; do
+    mounts=$(docker inspect "$cid" --format '{{range .Mounts}}{{.Source}} {{end}}')
+    if echo "$mounts" | grep -q "$PROJECT_PATH"; then
+      echo "$cid"
+      break
+    fi
+  done)
+
+  if [ -n "$CONTAINER_WITH_MOUNT" ]; then
+    NETWORK=$(docker inspect "$CONTAINER_WITH_MOUNT" --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}' | head -1)
+    if [ -n "$NETWORK" ]; then
+      echo -e "${GREEN}✓ Docker-сеть: ${BOLD}$NETWORK${NC}"
+    fi
+  fi
+fi
+
+if [ -z "$NETWORK" ]; then
+  echo -e "${YELLOW}⚠ Docker-сеть не определена. Если Битрикс не подключается к БД — добавьте вручную:${NC}"
+  echo '  "args": [..., "--network", "ИМЯ_СЕТИ", ...]'
+fi
+
+# --- Формируем аргументы docker run ---
+if [ -n "$NETWORK" ]; then
+  DOCKER_ARGS='["run","--rm","-i","--network","'"$NETWORK"'","-v","'"$PROJECT_PATH"':/var/www/html","'"$IMAGE"'"]'
+else
+  DOCKER_ARGS='["run","--rm","-i","-v","'"$PROJECT_PATH"':/var/www/html","'"$IMAGE"'"]'
+fi
+
+ENTRY='{"command":"docker","args":'"$DOCKER_ARGS"'}'
+
 # --- Генерируем .mcp.json ---
 MCP_FILE=".mcp.json"
-
-ENTRY='{"command":"docker","args":["run","--rm","-i","-v","'"$PROJECT_PATH"':/var/www/html","'"$IMAGE"'"]}'
 
 if [ -f "$MCP_FILE" ]; then
   echo ""
   echo -e "${YELLOW}⚠ Файл $MCP_FILE уже существует.${NC}"
 
-  # Пробуем добавить через python3
   if command -v python3 &>/dev/null; then
     python3 - "$MCP_FILE" "$ENTRY" <<'PYEOF'
 import json, sys
@@ -70,26 +112,25 @@ with open(path, "w") as f:
     json.dump(data, f, indent=2, ensure_ascii=False)
     f.write("\n")
 PYEOF
-    echo -e "${GREEN}✓ Сервер bitrix добавлен в $MCP_FILE${NC}"
+    echo -e "${GREEN}✓ Сервер bitrix обновлён в $MCP_FILE${NC}"
   else
     echo "  Добавьте вручную в секцию mcpServers:"
     echo ""
-    echo '  "bitrix": {'
-    echo '    "command": "docker",'
-    echo "    \"args\": [\"run\", \"--rm\", \"-i\", \"-v\", \"$PROJECT_PATH:/var/www/html\", \"$IMAGE\"]"
-    echo '  }'
+    echo "  \"bitrix\": $(echo "$ENTRY" | python3 -m json.tool 2>/dev/null || echo "$ENTRY")"
   fi
 else
-  cat > "$MCP_FILE" <<EOF
-{
-  "mcpServers": {
-    "bitrix": {
-      "command": "docker",
-      "args": ["run", "--rm", "-i", "-v", "$PROJECT_PATH:/var/www/html", "$IMAGE"]
-    }
-  }
-}
-EOF
+  python3 - "$MCP_FILE" "$ENTRY" <<'PYEOF'
+import json, sys
+
+path = sys.argv[1]
+entry = json.loads(sys.argv[2])
+
+data = {"mcpServers": {"bitrix": entry}}
+
+with open(path, "w") as f:
+    json.dump(data, f, indent=2, ensure_ascii=False)
+    f.write("\n")
+PYEOF
   echo -e "${GREEN}✓ Создан $MCP_FILE${NC}"
 fi
 
