@@ -10,6 +10,11 @@ use Warenikov\McpBitrix\Tools\IblockElementTools;
 use Warenikov\McpBitrix\Tools\HlblockTools;
 use Warenikov\McpBitrix\Tools\UserTools;
 use Warenikov\McpBitrix\Tools\OrmTools;
+use Warenikov\McpBitrix\Tools\AgentTools;
+use Warenikov\McpBitrix\Tools\CacheTools;
+use Warenikov\McpBitrix\Tools\OptionTools;
+use Warenikov\McpBitrix\Tools\EventLogTools;
+use Warenikov\McpBitrix\Tools\MailEventTools;
 
 class Server
 {
@@ -43,6 +48,11 @@ class Server
         HlblockTools::register($this);
         UserTools::register($this);
         OrmTools::register($this);
+        AgentTools::register($this);
+        CacheTools::register($this);
+        OptionTools::register($this);
+        EventLogTools::register($this);
+        MailEventTools::register($this);
     }
 
     public function addTool(
