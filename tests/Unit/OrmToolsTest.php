@@ -151,6 +151,7 @@ namespace Bitrix\Main\Type {
     {
         public string $value;
         public function __construct(string $v = '') { $this->value = $v; }
+        public function format(string $fmt): string { return $this->value; }
         public static function createFromPhp(\DateTime $dt): static
         {
             $obj = new static();
