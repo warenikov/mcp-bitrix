@@ -327,17 +327,28 @@ composer test
 
 ### Интеграционные тесты
 
-Запускаются внутри контейнера с реальным Битриксом. Нужен собранный образ `mcp-bitrix:local` и доступ к БД.
+Запускаются внутри контейнера с реальным Битриксом. Требуется доступ к БД.
+
+**Из облачного образа** (без клонирования репозитория):
 
 ```bash
-# Сборка локального образа
-docker build -t mcp-bitrix:local .
-
-# Запуск интеграционных тестов
 docker run --rm \
   --network <сеть_проекта> \
   -v /путь/к/битриксу:/var/www/html \
-  -e BITRIX_DOCUMENT_ROOT=/var/www/html \
+  ghcr.io/warenikov/mcp-bitrix:latest \
+  php vendor/bin/phpunit -c phpunit-integration.xml
+```
+
+**Из локального образа** (после изменений в коде):
+
+```bash
+# Сборка
+docker build -t mcp-bitrix:local .
+
+# Запуск
+docker run --rm \
+  --network <сеть_проекта> \
+  -v /путь/к/битриксу:/var/www/html \
   mcp-bitrix:local \
   php vendor/bin/phpunit -c phpunit-integration.xml
 ```
