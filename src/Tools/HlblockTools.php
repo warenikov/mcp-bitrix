@@ -86,11 +86,12 @@ class HlblockTools
 
         $server->addTool(
             name: 'list_hlblock_fields',
-            description: 'Получить список полей Highload-блока',
+            description: 'Получить список полей Highload-блока включая лейблы',
             inputSchema: [
                 'type'       => 'object',
                 'properties' => [
                     'hlblock_id' => ['type' => 'integer', 'description' => 'ID Highload-блока'],
+                    'lang'       => ['type' => 'string',  'description' => 'Язык лейблов (по умолчанию ru)'],
                 ],
                 'required'   => ['hlblock_id'],
             ],
@@ -319,7 +320,10 @@ class HlblockTools
 
         $result = [];
         $uft = new \CUserTypeEntity();
-        $rs  = $uft->GetList(['SORT' => 'ASC'], ['ENTITY_ID' => $entityId]);
+        $rs  = $uft->GetList(
+            ['SORT' => 'ASC'],
+            ['ENTITY_ID' => $entityId, 'LANG' => $args['lang'] ?? 'ru']
+        );
         while ($row = $rs->GetNext()) {
             $result[] = $row;
         }

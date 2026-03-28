@@ -396,6 +396,18 @@ namespace Warenikov\McpBitrix\Tests\Unit {
             $this->assertEquals('HLBLOCK_3', \CUserTypeEntity::$getListCalls[0]['filter']['ENTITY_ID']);
         }
 
+        public function testListFieldsPassesLangToFilter(): void
+        {
+            $this->tools->listFields(['hlblock_id' => 3]);
+            $this->assertEquals('ru', \CUserTypeEntity::$getListCalls[0]['filter']['LANG']);
+        }
+
+        public function testListFieldsUsesCustomLang(): void
+        {
+            $this->tools->listFields(['hlblock_id' => 3, 'lang' => 'en']);
+            $this->assertEquals('en', \CUserTypeEntity::$getListCalls[0]['filter']['LANG']);
+        }
+
         public function testListFieldsReturnsRows(): void
         {
             \CUserTypeEntity::$getListRows = [
