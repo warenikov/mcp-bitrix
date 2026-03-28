@@ -442,12 +442,12 @@ class OrmTools
                     ? $value
                     : \Bitrix\Main\Type\Date::createFromPhp(new \DateTime((string) $value));
             } elseif ($type === 'boolean') {
-                // Передаём PHP bool — Bitrix BooleanField принимает его нативно
-                // и сохраняет как 'Y'/'N' согласно своей конфигурации values
+                // Явно конвертируем в 'Y'/'N' — динамически компилируемые сущности
+                // не вызывают convertValueToDb(), и MySQL получает '1'/'0' вместо 'Y'/'N'
                 if (is_string($value)) {
-                    $result[$key] = strtoupper($value) === 'Y' || $value === '1' || $value === 'true';
+                    $result[$key] = (strtoupper($value) === 'Y' || $value === '1' || $value === 'true') ? 'Y' : 'N';
                 } else {
-                    $result[$key] = (bool) $value;
+                    $result[$key] = $value ? 'Y' : 'N';
                 }
             } else {
                 $result[$key] = $value;
