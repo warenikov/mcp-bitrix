@@ -9,6 +9,7 @@ use Warenikov\McpBitrix\Tools\IblockSectionTools;
 use Warenikov\McpBitrix\Tools\IblockElementTools;
 use Warenikov\McpBitrix\Tools\HlblockTools;
 use Warenikov\McpBitrix\Tools\UserTools;
+use Warenikov\McpBitrix\Tools\OrmTools;
 
 class Server
 {
@@ -41,6 +42,7 @@ class Server
         IblockElementTools::register($this);
         HlblockTools::register($this);
         UserTools::register($this);
+        OrmTools::register($this);
     }
 
     public function addTool(
