@@ -22,6 +22,11 @@ namespace {
         {
             return $this->rows[$this->pos++] ?? false;
         }
+
+        public function Fetch(): array|false
+        {
+            return $this->rows[$this->pos++] ?? false;
+        }
     }
 
     class FakeException
