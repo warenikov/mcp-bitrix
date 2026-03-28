@@ -300,7 +300,7 @@ class OrmTools
         $result = [];
         $rs = $dataClass::getList($query);
         while ($row = $rs->fetch()) {
-            $result[] = $row;
+            $result[] = $this->normalizeRow($row);
         }
 
         return $result;
@@ -315,7 +315,7 @@ class OrmTools
             throw new \RuntimeException("Запись с ID {$args['id']} не найдена в {$args['entity_name']}");
         }
 
-        return $row;
+        return $this->normalizeRow($row);
     }
 
     public function addRow(array $args): array
@@ -357,6 +357,18 @@ class OrmTools
     // -------------------------------------------------------------------------
     // Вспомогательные методы
     // -------------------------------------------------------------------------
+
+    private function normalizeRow(array $row): array
+    {
+        foreach ($row as $key => $value) {
+            if ($value instanceof \Bitrix\Main\Type\DateTime) {
+                $row[$key] = $value->format('Y-m-d H:i:s');
+            } elseif ($value instanceof \Bitrix\Main\Type\Date) {
+                $row[$key] = $value->format('Y-m-d');
+            }
+        }
+        return $row;
+    }
 
     private function ensureRegistry(): void
     {
