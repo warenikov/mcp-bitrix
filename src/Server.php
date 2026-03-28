@@ -74,6 +74,19 @@ class Server
 
     public function runOnStreams(mixed $input, mixed $output): void
     {
+        register_shutdown_function(function () use ($output): void {
+            $error = error_get_last();
+            if ($error === null || !in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+                return;
+            }
+            if (ob_get_level() > 0) {
+                ob_end_clean();
+            }
+            $response = $this->errorResponse(null, -32603, 'Fatal error: ' . $error['message']);
+            fwrite($output, json_encode($response, JSON_UNESCAPED_UNICODE) . "\n");
+            fflush($output);
+        });
+
         while (($line = fgets($input)) !== false) {
             $line = trim($line);
             if ($line === '') {
