@@ -20,7 +20,8 @@
         }
     },
     "scripts": {
-        "test": "phpunit tests/Unit"
+        "test": "phpunit tests/Unit",
+        "test-integration": "phpunit -c phpunit-integration.xml"
     },
     "bin": ["bin/server"]
 }
