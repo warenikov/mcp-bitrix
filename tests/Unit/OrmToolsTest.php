@@ -142,6 +142,35 @@ namespace Bitrix\Main\DB {
 }
 
 // =============================================================================
+// Stubs Bitrix\Main\Type
+// =============================================================================
+
+namespace Bitrix\Main\Type {
+
+    class Date
+    {
+        public string $value;
+        public function __construct(string $v = '') { $this->value = $v; }
+        public static function createFromPhp(\DateTime $dt): static
+        {
+            $obj = new static();
+            $obj->value = $dt->format('Y-m-d');
+            return $obj;
+        }
+    }
+
+    class DateTime extends Date
+    {
+        public static function createFromPhp(\DateTime $dt): static
+        {
+            $obj = new static();
+            $obj->value = $dt->format('Y-m-d H:i:s');
+            return $obj;
+        }
+    }
+}
+
+// =============================================================================
 // Stubs Bitrix\Main
 // =============================================================================
 
@@ -572,6 +601,66 @@ namespace Warenikov\McpBitrix\Tests\Unit {
             $this->expectExceptionMessage('не найдена в реестре');
 
             $this->tools->listRows(['entity_name' => 'Unknown']);
+        }
+
+        public function testOrmAddConvertsDatetimeStringToBitrixDateTime(): void
+        {
+            FakeConnection::$queryRows = [['ID' => 1, 'ENTITY_NAME' => 'Events', 'TABLE_NAME' => 'b_events',
+                'FIELDS' => '[{"name":"ID","type":"integer","primary":true,"autocomplete":true},{"name":"START_AT","type":"datetime"}]']];
+            FakeEntity::$dataClass = FakeOrmDataManager::class;
+
+            $this->tools->addRow([
+                'entity_name' => 'Events',
+                'fields'      => ['START_AT' => '2026-03-28 10:00:00'],
+            ]);
+
+            $fields = FakeOrmDataManager::$addCalls[0];
+            $this->assertInstanceOf(\Bitrix\Main\Type\DateTime::class, $fields['START_AT']);
+        }
+
+        public function testOrmAddConvertsBooleanTrueToY(): void
+        {
+            FakeConnection::$queryRows = [['ID' => 1, 'ENTITY_NAME' => 'Items', 'TABLE_NAME' => 'b_items',
+                'FIELDS' => '[{"name":"ID","type":"integer","primary":true,"autocomplete":true},{"name":"ACTIVE","type":"boolean"}]']];
+            FakeEntity::$dataClass = FakeOrmDataManager::class;
+
+            $this->tools->addRow([
+                'entity_name' => 'Items',
+                'fields'      => ['ACTIVE' => true],
+            ]);
+
+            $this->assertEquals('Y', FakeOrmDataManager::$addCalls[0]['ACTIVE']);
+        }
+
+        public function testOrmAddConvertsBooleanFalseToN(): void
+        {
+            FakeConnection::$queryRows = [['ID' => 1, 'ENTITY_NAME' => 'Items', 'TABLE_NAME' => 'b_items',
+                'FIELDS' => '[{"name":"ID","type":"integer","primary":true,"autocomplete":true},{"name":"ACTIVE","type":"boolean"}]']];
+            FakeEntity::$dataClass = FakeOrmDataManager::class;
+
+            $this->tools->addRow([
+                'entity_name' => 'Items',
+                'fields'      => ['ACTIVE' => false],
+            ]);
+
+            $this->assertEquals('N', FakeOrmDataManager::$addCalls[0]['ACTIVE']);
+        }
+
+        public function testOrmUpdateConvertsDatetimeAndBoolean(): void
+        {
+            FakeConnection::$queryRows = [['ID' => 1, 'ENTITY_NAME' => 'Events', 'TABLE_NAME' => 'b_events',
+                'FIELDS' => '[{"name":"ID","type":"integer","primary":true,"autocomplete":true},{"name":"START_AT","type":"datetime"},{"name":"ACTIVE","type":"boolean"}]']];
+            FakeEntity::$dataClass = FakeOrmDataManager::class;
+
+            $this->tools->updateRow([
+                'entity_name' => 'Events',
+                'id'          => 1,
+                'fields'      => ['START_AT' => '2026-03-28 10:00:00', 'ACTIVE' => true],
+            ]);
+
+            $fields = FakeOrmDataManager::$updateCalls[0]['fields'];
+            $this->assertInstanceOf(\Bitrix\Main\Type\DateTime::class, $fields['START_AT']);
+            $this->assertEquals('Y', $fields['ACTIVE']);
         }
     }
 }

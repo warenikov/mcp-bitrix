@@ -304,8 +304,8 @@ class OrmTools
 
     public function addRow(array $args): array
     {
-        $dataClass = $this->compileFromRegistry($args['entity_name']);
-        $result    = $dataClass::add($args['fields']);
+        [$dataClass, $fieldDefs] = $this->resolveEntity($args['entity_name']);
+        $result = $dataClass::add($this->normalizeValues($args['fields'], $fieldDefs));
 
         if ($result->isSuccess()) {
             return ['success' => true, 'id' => $result->getId()];
@@ -316,8 +316,8 @@ class OrmTools
 
     public function updateRow(array $args): array
     {
-        $dataClass = $this->compileFromRegistry($args['entity_name']);
-        $result    = $dataClass::update((int) $args['id'], $args['fields']);
+        [$dataClass, $fieldDefs] = $this->resolveEntity($args['entity_name']);
+        $result = $dataClass::update((int) $args['id'], $this->normalizeValues($args['fields'], $fieldDefs));
 
         if ($result->isSuccess()) {
             return ['success' => true];
@@ -373,18 +373,60 @@ class OrmTools
 
     private function compileFromRegistry(string $entityName): string
     {
+        return $this->resolveEntity($entityName)[0];
+    }
+
+    /**
+     * @return array{0: string, 1: array}  [dataClass, fieldDefs]
+     */
+    private function resolveEntity(string $entityName): array
+    {
         $row = $this->findInRegistry($entityName);
 
         if (!$row) {
             throw new \RuntimeException("Сущность {$entityName} не найдена в реестре");
         }
 
-        $fields = json_decode($row['FIELDS'], true);
-        $entity = Entity::compileEntity($entityName, $this->buildOrmFields($fields), [
+        $fieldDefs = json_decode($row['FIELDS'], true);
+        $entity    = Entity::compileEntity($entityName, $this->buildOrmFields($fieldDefs), [
             'table_name' => $row['TABLE_NAME'],
         ]);
 
-        return $entity->getDataClass();
+        return [$entity->getDataClass(), $fieldDefs];
+    }
+
+    private function normalizeValues(array $values, array $fieldDefs): array
+    {
+        $types = [];
+        foreach ($fieldDefs as $def) {
+            $types[strtoupper($def['name'])] = strtolower($def['type'] ?? 'string');
+        }
+
+        $result = [];
+        foreach ($values as $key => $value) {
+            $type = $types[strtoupper($key)] ?? null;
+
+            if ($value === null || $type === null) {
+                $result[$key] = $value;
+                continue;
+            }
+
+            if ($type === 'datetime') {
+                $result[$key] = $value instanceof \Bitrix\Main\Type\DateTime
+                    ? $value
+                    : \Bitrix\Main\Type\DateTime::createFromPhp(new \DateTime((string) $value));
+            } elseif ($type === 'date') {
+                $result[$key] = $value instanceof \Bitrix\Main\Type\Date
+                    ? $value
+                    : \Bitrix\Main\Type\Date::createFromPhp(new \DateTime((string) $value));
+            } elseif ($type === 'boolean') {
+                $result[$key] = ($value === true || $value === 1 || strtoupper((string) $value) === 'Y') ? 'Y' : 'N';
+            } else {
+                $result[$key] = $value;
+            }
+        }
+
+        return $result;
     }
 
     private function buildOrmFields(array $fields): array
