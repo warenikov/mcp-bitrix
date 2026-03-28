@@ -205,9 +205,12 @@ class OrmTools
         $entity->createDbTable();
 
         // Сохраняем в реестре
+        $helper = $conn->getSqlHelper();
         $conn->query(
-            "INSERT INTO " . self::REGISTRY_TABLE . " (ENTITY_NAME, TABLE_NAME, FIELDS) VALUES (?, ?, ?)",
-            [$entityName, $tableName, json_encode($fields, JSON_UNESCAPED_UNICODE)]
+            "INSERT INTO " . self::REGISTRY_TABLE . " (ENTITY_NAME, TABLE_NAME, FIELDS) VALUES ('" .
+            $helper->forSql($entityName) . "', '" .
+            $helper->forSql($tableName) . "', '" .
+            $helper->forSql(json_encode($fields, JSON_UNESCAPED_UNICODE)) . "')"
         );
 
         return ['success' => true, 'entity_name' => $entityName, 'table_name' => $tableName];
@@ -252,8 +255,8 @@ class OrmTools
         $conn = Application::getConnection();
         $conn->query("DROP TABLE IF EXISTS " . $conn->getSqlHelper()->forSql($row['TABLE_NAME']));
         $conn->query(
-            "DELETE FROM " . self::REGISTRY_TABLE . " WHERE ENTITY_NAME = ?",
-            [$args['entity_name']]
+            "DELETE FROM " . self::REGISTRY_TABLE . " WHERE ENTITY_NAME = '" .
+            $conn->getSqlHelper()->forSql($args['entity_name']) . "'"
         );
 
         return ['success' => true];
