@@ -329,27 +329,11 @@ composer test
 
 Запускаются внутри контейнера с реальным Битриксом. Требуется доступ к БД.
 
-**Из облачного образа** (без клонирования репозитория):
-
 ```bash
 docker run --rm \
   --network <сеть_проекта> \
   -v /путь/к/битриксу:/var/www/html \
   ghcr.io/warenikov/mcp-bitrix:latest \
-  php vendor/bin/phpunit -c phpunit-integration.xml
-```
-
-**Из локального образа** (после изменений в коде):
-
-```bash
-# Сборка
-docker build -t mcp-bitrix:local .
-
-# Запуск
-docker run --rm \
-  --network <сеть_проекта> \
-  -v /путь/к/битриксу:/var/www/html \
-  mcp-bitrix:local \
   php vendor/bin/phpunit -c phpunit-integration.xml
 ```
 
