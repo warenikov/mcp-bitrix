@@ -603,6 +603,81 @@ namespace Warenikov\McpBitrix\Tests\Unit {
             $this->tools->listRows(['entity_name' => 'Unknown']);
         }
 
+        // ─── write_orm_class_file ────────────────────────────────────────────
+
+        public function testWriteOrmClassFileGeneratesValidPhp(): void
+        {
+            FakeConnection::$queryRows = [['ID' => 1, 'ENTITY_NAME' => 'Invoice', 'TABLE_NAME' => 'b_invoice',
+                'FIELDS' => json_encode([
+                    ['name' => 'ID',         'type' => 'integer',  'primary' => true, 'autocomplete' => true],
+                    ['name' => 'TITLE',      'type' => 'string',   'size' => 255],
+                    ['name' => 'AMOUNT',     'type' => 'float'],
+                    ['name' => 'ACTIVE',     'type' => 'boolean'],
+                    ['name' => 'CREATED_AT', 'type' => 'datetime'],
+                ])]];
+
+            $dir    = sys_get_temp_dir() . '/mcp_orm_test_' . uniqid();
+            $result = $this->tools->writeOrmClassFile(['entity_name' => 'Invoice', 'path' => $dir]);
+
+            $this->assertTrue($result['success']);
+            $this->assertEquals('InvoiceTable', $result['class_name']);
+            $this->assertFileExists($result['file']);
+
+            $code = file_get_contents($result['file']);
+            $this->assertStringContainsString('class InvoiceTable extends DataManager', $code);
+            $this->assertStringContainsString("return 'b_invoice'", $code);
+            $this->assertStringContainsString("new IntegerField('ID'", $code);
+            $this->assertStringContainsString("new StringField('TITLE'", $code);
+            $this->assertStringContainsString("new FloatField('AMOUNT'", $code);
+            $this->assertStringContainsString("new BooleanField('ACTIVE'", $code);
+            $this->assertStringContainsString("new DatetimeField('CREATED_AT'", $code);
+            $this->assertStringContainsString("'values' => ['N', 'Y']", $code);
+
+            unlink($result['file']);
+            rmdir($dir);
+        }
+
+        public function testWriteOrmClassFileRespectsNamespace(): void
+        {
+            FakeConnection::$queryRows = [['ID' => 1, 'ENTITY_NAME' => 'Invoice', 'TABLE_NAME' => 'b_invoice',
+                'FIELDS' => json_encode([['name' => 'ID', 'type' => 'integer', 'primary' => true, 'autocomplete' => true]])]];
+
+            $dir    = sys_get_temp_dir() . '/mcp_orm_test_' . uniqid();
+            $result = $this->tools->writeOrmClassFile([
+                'entity_name' => 'Invoice',
+                'path'        => $dir,
+                'namespace'   => 'App\\Orm',
+            ]);
+
+            $code = file_get_contents($result['file']);
+            $this->assertStringContainsString('namespace App\\Orm;', $code);
+
+            unlink($result['file']);
+            rmdir($dir);
+        }
+
+        public function testWriteOrmClassFileThrowsWhenEntityNotFound(): void
+        {
+            $this->expectException(\RuntimeException::class);
+            $this->expectExceptionMessage('не найдена');
+
+            $this->tools->writeOrmClassFile(['entity_name' => 'Unknown']);
+        }
+
+        public function testCreateEntityHintIncludesWriteOrmClassFile(): void
+        {
+            FakeConnection::$tableExists = false;
+
+            $result = $this->tools->createEntity([
+                'entity_name' => 'MyEntity',
+                'table_name'  => 'b_my_entity',
+                'fields'      => [['name' => 'NAME', 'type' => 'string']],
+            ]);
+
+            $this->assertArrayHasKey('hint', $result);
+            $this->assertStringContainsString('write_orm_class_file', $result['hint']);
+        }
+
         public function testOrmAddConvertsDatetimeStringToBitrixDateTime(): void
         {
             FakeConnection::$queryRows = [['ID' => 1, 'ENTITY_NAME' => 'Events', 'TABLE_NAME' => 'b_events',

@@ -167,6 +167,22 @@ class OrmTools
             handler: [$self, 'deleteRow'],
             mutating: true
         );
+
+        $server->addTool(
+            name: 'write_orm_class_file',
+            description: 'Сгенерировать PHP-класс DataManager для ORM-сущности и записать его в файловую систему сайта. После этого класс можно подключить в кодовую базу через автолоадер Битрикса.',
+            inputSchema: [
+                'type'       => 'object',
+                'properties' => [
+                    'entity_name' => ['type' => 'string', 'description' => 'Имя сущности (должна быть создана через create_orm_entity)'],
+                    'path'        => ['type' => 'string', 'description' => 'Папка для записи файла (по умолчанию /var/www/html/local/lib/Orm)'],
+                    'namespace'   => ['type' => 'string', 'description' => 'PHP-namespace класса (опционально, напр. App\\Orm)'],
+                ],
+                'required' => ['entity_name'],
+            ],
+            handler: [$self, 'writeOrmClassFile'],
+            mutating: true
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -227,7 +243,12 @@ class OrmTools
             $helper->forSql(json_encode($fields, JSON_UNESCAPED_UNICODE)) . "')"
         );
 
-        return ['success' => true, 'entity_name' => $entityName, 'table_name' => $tableName];
+        return [
+            'success'     => true,
+            'entity_name' => $entityName,
+            'table_name'  => $tableName,
+            'hint'        => "Сущность создана и доступна через MCP. Чтобы использовать её в PHP-коде сайта, вызовите write_orm_class_file.",
+        ];
     }
 
     public function listEntities(array $args): array
@@ -357,6 +378,105 @@ class OrmTools
     // -------------------------------------------------------------------------
     // Вспомогательные методы
     // -------------------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // Генерация PHP-класса
+    // -------------------------------------------------------------------------
+
+    public function writeOrmClassFile(array $args): array
+    {
+        $this->ensureRegistry();
+
+        $row = $this->findInRegistry($args['entity_name']);
+        if (!$row) {
+            throw new \RuntimeException("Сущность {$args['entity_name']} не найдена");
+        }
+
+        $entityName = $row['ENTITY_NAME'];
+        $tableName  = $row['TABLE_NAME'];
+        $fieldDefs  = json_decode($row['FIELDS'], true);
+        $namespace  = $args['namespace'] ?? '';
+        $dir        = rtrim($args['path'] ?? '/var/www/html/local/lib/Orm', '/');
+        $className  = $entityName . 'Table';
+        $filePath   = $dir . '/' . $className . '.php';
+
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        file_put_contents($filePath, $this->generateClassCode($className, $tableName, $fieldDefs, $namespace));
+
+        return [
+            'success'    => true,
+            'file'       => $filePath,
+            'class_name' => $className,
+            'note'       => "Зарегистрируйте класс в автолоадере Битрикса (/local/.settings.php) или подключите через require_once.",
+        ];
+    }
+
+    private function generateClassCode(string $className, string $tableName, array $fieldDefs, string $namespace): string
+    {
+        $fieldTypeMap = [
+            'integer'  => ['class' => 'IntegerField',  'use' => 'Bitrix\\Main\\ORM\\Fields\\IntegerField'],
+            'string'   => ['class' => 'StringField',   'use' => 'Bitrix\\Main\\ORM\\Fields\\StringField'],
+            'text'     => ['class' => 'TextField',     'use' => 'Bitrix\\Main\\ORM\\Fields\\TextField'],
+            'float'    => ['class' => 'FloatField',    'use' => 'Bitrix\\Main\\ORM\\Fields\\FloatField'],
+            'boolean'  => ['class' => 'BooleanField',  'use' => 'Bitrix\\Main\\ORM\\Fields\\BooleanField'],
+            'date'     => ['class' => 'DateField',     'use' => 'Bitrix\\Main\\ORM\\Fields\\DateField'],
+            'datetime' => ['class' => 'DatetimeField', 'use' => 'Bitrix\\Main\\ORM\\Fields\\DatetimeField'],
+        ];
+
+        $usedTypes = array_unique(array_map(fn($f) => strtolower($f['type'] ?? 'string'), $fieldDefs));
+        $uses      = ['use Bitrix\\Main\\ORM\\Data\\DataManager;'];
+        foreach ($usedTypes as $type) {
+            if (isset($fieldTypeMap[$type])) {
+                $uses[] = 'use ' . $fieldTypeMap[$type]['use'] . ';';
+            }
+        }
+        sort($uses);
+
+        $fieldLines = [];
+        foreach ($fieldDefs as $def) {
+            $type   = strtolower($def['type'] ?? 'string');
+            $class  = $fieldTypeMap[$type]['class'] ?? 'StringField';
+            $params = [];
+            if (!empty($def['primary']))      $params[] = "'primary' => true";
+            if (!empty($def['autocomplete'])) $params[] = "'autocomplete' => true";
+            if (!empty($def['required']))     $params[] = "'required' => true";
+            if (!empty($def['size']))         $params[] = "'size' => " . (int) $def['size'];
+            if ($type === 'boolean')          $params[] = "'values' => ['N', 'Y']";
+
+            $paramsStr  = empty($params) ? '' : ', [' . implode(', ', $params) . ']';
+            $fieldLines[] = "            new {$class}('{$def['name']}'{$paramsStr}),";
+        }
+
+        $nsLine     = $namespace ? "namespace {$namespace};\n\n" : '';
+        $usesCode   = implode("\n", $uses);
+        $fieldsCode = implode("\n", $fieldLines);
+        $date       = date('Y-m-d');
+
+        return "<?php\n\n{$nsLine}{$usesCode}\n\n"
+            . "/**\n"
+            . " * Сгенерировано mcp-bitrix {$date}\n"
+            . " * Таблица в БД: {$tableName}\n"
+            . " *\n"
+            . " * Автолоадер (/local/.settings.php):\n"
+            . " *   'autoload' => ['value' => ['classes' => ['{$className}' => '/local/lib/Orm/{$className}.php']]]\n"
+            . " */\n"
+            . "class {$className} extends DataManager\n"
+            . "{\n"
+            . "    public static function getTableName(): string\n"
+            . "    {\n"
+            . "        return '{$tableName}';\n"
+            . "    }\n\n"
+            . "    public static function getMap(): array\n"
+            . "    {\n"
+            . "        return [\n"
+            . $fieldsCode . "\n"
+            . "        ];\n"
+            . "    }\n"
+            . "}\n";
+    }
 
     private function normalizeRow(array $row): array
     {
