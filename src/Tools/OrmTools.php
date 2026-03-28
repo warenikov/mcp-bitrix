@@ -398,7 +398,14 @@ class OrmTools
         }
 
         $fieldDefs = json_decode($row['FIELDS'], true);
-        $entity    = Entity::compileEntity($entityName, $this->buildOrmFields($fieldDefs), [
+
+        // Если класс уже скомпилирован в этом процессе — не вызываем compileEntity повторно,
+        // повторный eval() вызывает PHP fatal "Cannot declare class, already in use".
+        if (class_exists($entityName . 'Table', false)) {
+            return [$entityName . 'Table', $fieldDefs];
+        }
+
+        $entity = Entity::compileEntity($entityName, $this->buildOrmFields($fieldDefs), [
             'table_name' => $row['TABLE_NAME'],
         ]);
 
