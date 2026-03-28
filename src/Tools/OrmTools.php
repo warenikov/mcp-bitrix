@@ -188,6 +188,16 @@ class OrmTools
             throw new \RuntimeException("Сущность {$entityName} уже зарегистрирована");
         }
 
+        // PHP не позволяет переобъявить класс в том же процессе.
+        // Если класс уже скомпилирован (сущность была создана и удалена в этой же сессии),
+        // создать её заново можно только после перезапуска MCP-сервера.
+        if (class_exists($entityName . 'Table', false)) {
+            throw new \RuntimeException(
+                "Класс {$entityName}Table уже объявлен в текущей сессии PHP. " .
+                "Пересоздание сущности с тем же именем требует перезапуска MCP-сервера."
+            );
+        }
+
         // Добавляем ID если не задан
         $hasId = !empty(array_filter($fields, fn($f) => strtoupper($f['name']) === 'ID'));
         if (!$hasId) {

@@ -15,35 +15,26 @@ use Warenikov\McpBitrix\Tools\OrmTools;
  * Требования:
  *   - Реальный Bitrix смонтирован в /var/www/html (или BITRIX_DOCUMENT_ROOT)
  *   - Доступ к БД
+ *
+ * Сущность создаётся один раз для всего набора тестов (ограничение PHP:
+ * eval()-классы нельзя переобъявить в том же процессе).
  */
 class OrmToolsSmokeTest extends TestCase
 {
     private const ENTITY_NAME = 'McpSmokeTest';
     private const TABLE_NAME  = 'b_mcp_smoke_test';
 
-    private OrmTools $tools;
+    private static OrmTools $tools;
 
     public static function setUpBeforeClass(): void
     {
         BitrixBootstrap::init();
-    }
+        self::$tools = new OrmTools();
 
-    protected function setUp(): void
-    {
-        $this->tools = new OrmTools();
-        $this->cleanupTestEntity();
-    }
+        // Чистим остатки предыдущего запуска
+        self::dropEntitySilently();
 
-    protected function tearDown(): void
-    {
-        $this->cleanupTestEntity();
-    }
-
-    // ── Сущности ─────────────────────────────────────────────────────────────
-
-    public function testCreateEntity(): void
-    {
-        $result = $this->tools->createEntity([
+        self::$tools->createEntity([
             'entity_name' => self::ENTITY_NAME,
             'table_name'  => self::TABLE_NAME,
             'fields'      => [
@@ -53,100 +44,120 @@ class OrmToolsSmokeTest extends TestCase
                 ['name' => 'CREATED_AT', 'type' => 'datetime'],
             ],
         ]);
-
-        $this->assertTrue($result['success']);
-        $this->assertEquals(self::ENTITY_NAME, $result['entity_name']);
-        $this->assertEquals(self::TABLE_NAME,  $result['table_name']);
     }
 
-    public function testCreateEntityThrowsIfAlreadyExists(): void
+    public static function tearDownAfterClass(): void
     {
-        $this->createTestEntity();
-
-        $this->expectException(\RuntimeException::class);
-        $this->tools->createEntity([
-            'entity_name' => self::ENTITY_NAME,
-            'table_name'  => self::TABLE_NAME,
-            'fields'      => [],
-        ]);
+        self::dropEntitySilently();
     }
 
-    public function testListEntitiesContainsCreated(): void
+    protected function setUp(): void
     {
-        $this->createTestEntity();
+        // Удаляем все строки между тестами
+        $rows = self::$tools->listRows(['entity_name' => self::ENTITY_NAME, 'limit' => 1000]);
+        foreach ($rows as $row) {
+            self::$tools->deleteRow(['entity_name' => self::ENTITY_NAME, 'id' => (int) $row['ID']]);
+        }
+    }
 
-        $list = $this->tools->listEntities([]);
+    // ── Сущности ─────────────────────────────────────────────────────────────
+
+    public function testEntityAppearsInList(): void
+    {
+        $list  = self::$tools->listEntities([]);
         $names = array_column($list, 'ENTITY_NAME');
 
         $this->assertContains(self::ENTITY_NAME, $names);
     }
 
-    public function testGetEntity(): void
+    public function testGetEntityReturnsCorrectMeta(): void
     {
-        $this->createTestEntity();
-
-        $entity = $this->tools->getEntity(['entity_name' => self::ENTITY_NAME]);
+        $entity = self::$tools->getEntity(['entity_name' => self::ENTITY_NAME]);
 
         $this->assertEquals(self::ENTITY_NAME, $entity['ENTITY_NAME']);
         $this->assertEquals(self::TABLE_NAME,  $entity['TABLE_NAME']);
         $this->assertIsArray($entity['FIELDS']);
     }
 
-    public function testDropEntity(): void
+    public function testCreateEntityThrowsOnDuplicate(): void
     {
-        $this->createTestEntity();
-
-        $result = $this->tools->dropEntity(['entity_name' => self::ENTITY_NAME]);
-        $this->assertTrue($result['success']);
-
-        // После удаления сущность не должна находиться
         $this->expectException(\RuntimeException::class);
-        $this->tools->getEntity(['entity_name' => self::ENTITY_NAME]);
+
+        self::$tools->createEntity([
+            'entity_name' => self::ENTITY_NAME,
+            'table_name'  => self::TABLE_NAME,
+            'fields'      => [],
+        ]);
     }
 
     // ── CRUD ─────────────────────────────────────────────────────────────────
 
-    public function testAddAndGetRow(): void
+    public function testAddRowReturnsId(): void
     {
-        $this->createTestEntity();
-
-        $addResult = $this->tools->addRow([
+        $result = self::$tools->addRow([
             'entity_name' => self::ENTITY_NAME,
-            'fields'      => [
-                'TITLE'      => 'Test item',
-                'AMOUNT'     => 99.99,
-                'ACTIVE'     => true,
-                'CREATED_AT' => '2026-01-01 12:00:00',
-            ],
+            'fields'      => ['TITLE' => 'Item A', 'AMOUNT' => 9.99, 'ACTIVE' => true],
         ]);
 
-        $this->assertTrue($addResult['success']);
-        $this->assertIsInt($addResult['id']);
-
-        $row = $this->tools->getRow(['entity_name' => self::ENTITY_NAME, 'id' => $addResult['id']]);
-        $this->assertEquals('Test item', $row['TITLE']);
-        $this->assertEquals('Y',         $row['ACTIVE']);
+        $this->assertTrue($result['success']);
+        $this->assertIsInt($result['id']);
+        $this->assertGreaterThan(0, $result['id']);
     }
 
-    public function testListRows(): void
+    public function testGetRowById(): void
     {
-        $this->createTestEntity();
+        $id = self::$tools->addRow([
+            'entity_name' => self::ENTITY_NAME,
+            'fields'      => ['TITLE' => 'Find me'],
+        ])['id'];
 
-        $this->tools->addRow(['entity_name' => self::ENTITY_NAME, 'fields' => ['TITLE' => 'A', 'ACTIVE' => true]]);
-        $this->tools->addRow(['entity_name' => self::ENTITY_NAME, 'fields' => ['TITLE' => 'B', 'ACTIVE' => false]]);
+        $row = self::$tools->getRow(['entity_name' => self::ENTITY_NAME, 'id' => $id]);
+        $this->assertEquals('Find me', $row['TITLE']);
+    }
 
-        $rows = $this->tools->listRows(['entity_name' => self::ENTITY_NAME]);
-        $this->assertCount(2, $rows);
+    public function testGetRowThrowsWhenNotFound(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        self::$tools->getRow(['entity_name' => self::ENTITY_NAME, 'id' => 999999]);
+    }
+
+    public function testBooleanFieldStoredAsYN(): void
+    {
+        $id = self::$tools->addRow([
+            'entity_name' => self::ENTITY_NAME,
+            'fields'      => ['TITLE' => 'bool test', 'ACTIVE' => true],
+        ])['id'];
+
+        $row = self::$tools->getRow(['entity_name' => self::ENTITY_NAME, 'id' => $id]);
+        $this->assertEquals('Y', $row['ACTIVE']);
+    }
+
+    public function testDatetimeFieldAcceptsString(): void
+    {
+        $result = self::$tools->addRow([
+            'entity_name' => self::ENTITY_NAME,
+            'fields'      => ['TITLE' => 'datetime test', 'CREATED_AT' => '2026-01-15 10:30:00'],
+        ]);
+
+        $this->assertTrue($result['success']);
+    }
+
+    public function testListRowsReturnsAll(): void
+    {
+        self::$tools->addRow(['entity_name' => self::ENTITY_NAME, 'fields' => ['TITLE' => 'A']]);
+        self::$tools->addRow(['entity_name' => self::ENTITY_NAME, 'fields' => ['TITLE' => 'B']]);
+        self::$tools->addRow(['entity_name' => self::ENTITY_NAME, 'fields' => ['TITLE' => 'C']]);
+
+        $rows = self::$tools->listRows(['entity_name' => self::ENTITY_NAME]);
+        $this->assertCount(3, $rows);
     }
 
     public function testListRowsWithFilter(): void
     {
-        $this->createTestEntity();
+        self::$tools->addRow(['entity_name' => self::ENTITY_NAME, 'fields' => ['TITLE' => 'Active',   'ACTIVE' => true]]);
+        self::$tools->addRow(['entity_name' => self::ENTITY_NAME, 'fields' => ['TITLE' => 'Inactive', 'ACTIVE' => false]]);
 
-        $this->tools->addRow(['entity_name' => self::ENTITY_NAME, 'fields' => ['TITLE' => 'Active',   'ACTIVE' => true]]);
-        $this->tools->addRow(['entity_name' => self::ENTITY_NAME, 'fields' => ['TITLE' => 'Inactive', 'ACTIVE' => false]]);
-
-        $rows = $this->tools->listRows([
+        $rows = self::$tools->listRows([
             'entity_name' => self::ENTITY_NAME,
             'filter'      => ['=ACTIVE' => 'Y'],
         ]);
@@ -155,71 +166,56 @@ class OrmToolsSmokeTest extends TestCase
         $this->assertEquals('Active', $rows[0]['TITLE']);
     }
 
+    public function testListRowsLimit(): void
+    {
+        for ($i = 1; $i <= 5; $i++) {
+            self::$tools->addRow(['entity_name' => self::ENTITY_NAME, 'fields' => ['TITLE' => "Item $i"]]);
+        }
+
+        $rows = self::$tools->listRows(['entity_name' => self::ENTITY_NAME, 'limit' => 3]);
+        $this->assertCount(3, $rows);
+    }
+
     public function testUpdateRow(): void
     {
-        $this->createTestEntity();
-
-        $id = $this->tools->addRow([
+        $id = self::$tools->addRow([
             'entity_name' => self::ENTITY_NAME,
-            'fields'      => ['TITLE' => 'Old title'],
+            'fields'      => ['TITLE' => 'Old', 'ACTIVE' => false],
         ])['id'];
 
-        $updateResult = $this->tools->updateRow([
+        $result = self::$tools->updateRow([
             'entity_name' => self::ENTITY_NAME,
             'id'          => $id,
-            'fields'      => ['TITLE' => 'New title'],
+            'fields'      => ['TITLE' => 'New', 'ACTIVE' => true],
         ]);
 
-        $this->assertTrue($updateResult['success']);
+        $this->assertTrue($result['success']);
 
-        $row = $this->tools->getRow(['entity_name' => self::ENTITY_NAME, 'id' => $id]);
-        $this->assertEquals('New title', $row['TITLE']);
+        $row = self::$tools->getRow(['entity_name' => self::ENTITY_NAME, 'id' => $id]);
+        $this->assertEquals('New', $row['TITLE']);
+        $this->assertEquals('Y',   $row['ACTIVE']);
     }
 
     public function testDeleteRow(): void
     {
-        $this->createTestEntity();
-
-        $id = $this->tools->addRow([
+        $id = self::$tools->addRow([
             'entity_name' => self::ENTITY_NAME,
             'fields'      => ['TITLE' => 'To delete'],
         ])['id'];
 
-        $deleteResult = $this->tools->deleteRow(['entity_name' => self::ENTITY_NAME, 'id' => $id]);
-        $this->assertTrue($deleteResult['success']);
+        $result = self::$tools->deleteRow(['entity_name' => self::ENTITY_NAME, 'id' => $id]);
+        $this->assertTrue($result['success']);
 
         $this->expectException(\RuntimeException::class);
-        $this->tools->getRow(['entity_name' => self::ENTITY_NAME, 'id' => $id]);
-    }
-
-    public function testGetRowThrowsWhenNotFound(): void
-    {
-        $this->createTestEntity();
-
-        $this->expectException(\RuntimeException::class);
-        $this->tools->getRow(['entity_name' => self::ENTITY_NAME, 'id' => 999999]);
+        self::$tools->getRow(['entity_name' => self::ENTITY_NAME, 'id' => $id]);
     }
 
     // ── Вспомогательные ──────────────────────────────────────────────────────
 
-    private function createTestEntity(): void
-    {
-        $this->tools->createEntity([
-            'entity_name' => self::ENTITY_NAME,
-            'table_name'  => self::TABLE_NAME,
-            'fields'      => [
-                ['name' => 'TITLE',      'type' => 'string',   'size' => 255],
-                ['name' => 'AMOUNT',     'type' => 'float'],
-                ['name' => 'ACTIVE',     'type' => 'boolean'],
-                ['name' => 'CREATED_AT', 'type' => 'datetime'],
-            ],
-        ]);
-    }
-
-    private function cleanupTestEntity(): void
+    private static function dropEntitySilently(): void
     {
         try {
-            $this->tools->dropEntity(['entity_name' => self::ENTITY_NAME]);
+            self::$tools->dropEntity(['entity_name' => self::ENTITY_NAME]);
         } catch (\Throwable) {
             // Сущность не существует — ок
         }
