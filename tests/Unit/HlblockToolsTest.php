@@ -184,21 +184,6 @@ namespace Bitrix\Highloadblock {
         }
     }
 
-    class HighloadBlockFieldTable
-    {
-        public static array $addCalls = [];
-
-        public static function add(array $fields): OrmResult
-        {
-            self::$addCalls[] = $fields;
-            return new OrmResult(true);
-        }
-
-        public static function reset(): void
-        {
-            self::$addCalls = [];
-        }
-    }
 }
 
 // =============================================================================
@@ -266,7 +251,6 @@ namespace Warenikov\McpBitrix\Tests\Unit {
 // Тесты
 // =============================================================================
 
-    use Bitrix\Highloadblock\HighloadBlockFieldTable;
     use Bitrix\Highloadblock\HighloadBlockTable;
     use Bitrix\Main\UserTypeTable;
     use PHPUnit\Framework\TestCase;
@@ -282,7 +266,6 @@ namespace Warenikov\McpBitrix\Tests\Unit {
 
             \CUserTypeEntity::reset();
             HighloadBlockTable::reset();
-            HighloadBlockFieldTable::reset();
             UserTypeTable::reset();
             FakeHlDataManager::reset();
         }
@@ -455,21 +438,7 @@ namespace Warenikov\McpBitrix\Tests\Unit {
             $this->assertEquals('Название', $fields['EDIT_FORM_LABEL']['en']);
         }
 
-        public function testAddFieldLinksToHlblockViaFieldTable(): void
-        {
-            $this->tools->addField([
-                'hlblock_id' => 5,
-                'field_name' => 'UF_NAME',
-                'type'       => 'string',
-            ]);
-
-            $this->assertCount(1, HighloadBlockFieldTable::$addCalls);
-            $link = HighloadBlockFieldTable::$addCalls[0];
-            $this->assertEquals(5,        $link['HLBLOCK_ID']);
-            $this->assertEquals('UF_NAME', $link['FIELD_NAME']);
-        }
-
-        public function testAddFieldReturnsFieldId(): void
+public function testAddFieldReturnsFieldId(): void
         {
             \CUserTypeEntity::$addReturn = 15;
 

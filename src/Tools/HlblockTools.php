@@ -2,7 +2,6 @@
 
 namespace Warenikov\McpBitrix\Tools;
 
-use Bitrix\Highloadblock\HighloadBlockFieldTable;
 use Bitrix\Highloadblock\HighloadBlockTable;
 use Bitrix\Main\Loader;
 use Bitrix\Main\UserTypeTable;
@@ -358,15 +357,6 @@ class HlblockTools
 
         if (!$fieldId) {
             return ['success' => false, 'error' => $uft->LAST_ERROR];
-        }
-
-        $linkResult = HighloadBlockFieldTable::add([
-            'HLBLOCK_ID' => $hlblockId,
-            'FIELD_NAME' => $args['field_name'],
-        ]);
-
-        if (!$linkResult->isSuccess()) {
-            return ['success' => false, 'errors' => $linkResult->getErrorMessages()];
         }
 
         return ['success' => true, 'field_id' => (int) $fieldId];
