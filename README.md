@@ -142,12 +142,29 @@ curl -sL https://raw.githubusercontent.com/warenikov/mcp-bitrix/main/install.sh 
 | `update_iblock_element` | Обновить (поля + свойства) |
 | `delete_iblock_element` | Удалить |
 
+### Highload-блоки
+| Инструмент | Описание |
+|---|---|
+| `list_hlblocks` | Список всех HL-блоков |
+| `get_hlblock` | Получить по ID |
+| `create_hlblock` | Создать (автоматически создаёт таблицу в БД) |
+| `update_hlblock` | Обновить |
+| `delete_hlblock` | Удалить |
+| `list_hlblock_fields` | Список полей с лейблами (параметр `lang`, по умолчанию ru) |
+| `add_hlblock_field` | Добавить поле (типы: string, text, integer, double, boolean, datetime, date, file, enumeration) |
+| `update_hlblock_field` | Обновить поле |
+| `delete_hlblock_field` | Удалить поле |
+| `list_hlblock_elements` | Список элементов с фильтром и постраничкой |
+| `get_hlblock_element` | Получить элемент по ID |
+| `add_hlblock_element` | Добавить элемент |
+| `update_hlblock_element` | Обновить элемент |
+| `delete_hlblock_element` | Удалить элемент |
+
 ---
 
 ## В разработке
 
-### Ближайшие (Фаза 1)
-- **Highload-блоки** — CRUD для HL-блоков, полей и элементов
+### Ближайшие (Фаза 2)
 - **Пользователи** — создание, группы, пользовательские поля
 - **ORM** — генерация DataManager-классов, создание таблиц
 
