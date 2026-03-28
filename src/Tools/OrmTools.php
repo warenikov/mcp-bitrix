@@ -247,7 +247,7 @@ class OrmTools
             'success'     => true,
             'entity_name' => $entityName,
             'table_name'  => $tableName,
-            'hint'        => "Сущность создана и доступна через MCP. Чтобы использовать её в PHP-коде сайта, вызовите write_orm_class_file.",
+            'hint'        => "Сущность создана и доступна через MCP-инструменты. Для использования в PHP-коде сайта разработчик может запросить write_orm_class_file.",
         ];
     }
 
