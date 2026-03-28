@@ -47,11 +47,11 @@ class EventLogTools
             inputSchema: [
                 'type'       => 'object',
                 'properties' => [
-                    'severity'       => ['type' => 'string',  'description' => 'Уровень: DEBUG, INFO, WARNING, ERROR, SECURITY (по умолчанию INFO)'],
-                    'audit_type_id'  => ['type' => 'string',  'description' => 'Тип аудита (например, "MCP_ACTION")'],
-                    'module_id'      => ['type' => 'string',  'description' => 'ID модуля'],
-                    'item_id'        => ['type' => 'string',  'description' => 'ID объекта'],
-                    'description'    => ['type' => 'string',  'description' => 'Описание события'],
+                    'severity'      => ['type' => 'string', 'description' => 'Уровень: DEBUG, INFO, WARNING, ERROR, SECURITY (по умолчанию INFO)'],
+                    'audit_type_id' => ['type' => 'string', 'description' => 'Тип аудита (например, "MCP_ACTION")'],
+                    'module_id'     => ['type' => 'string', 'description' => 'ID модуля'],
+                    'item_id'       => ['type' => 'string', 'description' => 'ID объекта'],
+                    'description'   => ['type' => 'string', 'description' => 'Описание события'],
                 ],
                 'required' => ['audit_type_id', 'description'],
             ],
@@ -95,11 +95,12 @@ class EventLogTools
 
     public function getEventLog(array $args): array
     {
-        $rs  = \CEventLog::GetById((int) $args['id']);
+        $id = (int) $args['id'];
+        $rs  = \CEventLog::GetList(['ID' => 'ASC'], ['ID' => $id]);
         $row = $rs->Fetch();
 
         if (!$row) {
-            throw new \RuntimeException("Запись журнала с ID {$args['id']} не найдена");
+            throw new \RuntimeException("Запись журнала с ID {$id} не найдена");
         }
 
         return $row;
@@ -107,7 +108,7 @@ class EventLogTools
 
     public function addEventLog(array $args): array
     {
-        $severity  = strtoupper($args['severity'] ?? 'INFO');
+        $severity        = strtoupper($args['severity'] ?? 'INFO');
         $validSeverities = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'SECURITY'];
         if (!in_array($severity, $validSeverities, true)) {
             $severity = 'INFO';
@@ -126,10 +127,12 @@ class EventLogTools
 
     public function clearEventLog(array $args): array
     {
-        $days    = (int) ($args['older_than_days'] ?? 30);
-        $cutoff  = date('d.m.Y', strtotime("-{$days} days"));
+        $days   = (int) ($args['older_than_days'] ?? 30);
+        $cutoff = date('Y-m-d H:i:s', strtotime("-{$days} days"));
 
-        \CEventLog::ClearByDate($cutoff);
+        $conn   = \Bitrix\Main\Application::getConnection();
+        $helper = $conn->getSqlHelper();
+        $conn->query("DELETE FROM b_event_log WHERE TIMESTAMP_X < '" . $helper->forSql($cutoff) . "'");
 
         return ['success' => true, 'cleared_before' => $cutoff];
     }

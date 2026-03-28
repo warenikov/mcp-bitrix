@@ -66,20 +66,18 @@ namespace {
     if (!class_exists('CEventLog')) {
         class CEventLog
         {
-            public static array  $addCalls   = [];
-            public static array  $clearCalls = [];
-            public static array  $listRows   = [];
-            public static ?array $getByIdRow = null;
+            public static array $addCalls = [];
+            public static array $listRows = [];
 
             public static function GetList(array $order, array $filter): \FakeDbResult
             {
+                // Имитируем фильтр по ID для getEventLog
+                if (isset($filter['ID'])) {
+                    $id = (int) $filter['ID'];
+                    $rows = array_filter(self::$listRows, fn($r) => (int) $r['ID'] === $id);
+                    return new \FakeDbResult(array_values($rows));
+                }
                 return new \FakeDbResult(self::$listRows);
-            }
-
-            public static function GetById(int $id): \FakeDbResult
-            {
-                $row = self::$getByIdRow;
-                return new \FakeDbResult($row !== null ? [$row] : []);
             }
 
             public static function Add(array $fields): void
@@ -87,17 +85,10 @@ namespace {
                 self::$addCalls[] = $fields;
             }
 
-            public static function ClearByDate(string $date): void
-            {
-                self::$clearCalls[] = $date;
-            }
-
             public static function reset(): void
             {
-                self::$addCalls   = [];
-                self::$clearCalls = [];
-                self::$listRows   = [];
-                self::$getByIdRow = null;
+                self::$addCalls = [];
+                self::$listRows = [];
             }
         }
     }
@@ -562,7 +553,7 @@ namespace Warenikov\McpBitrix\Tests\Unit {
 
         public function testGetEventLogReturnsRow(): void
         {
-            \CEventLog::$getByIdRow = ['ID' => '5', 'SEVERITY' => 'WARNING'];
+            \CEventLog::$listRows = [['ID' => '5', 'SEVERITY' => 'WARNING']];
             $result = $this->tools->getEventLog(['id' => 5]);
             $this->assertEquals('5', $result['ID']);
         }
@@ -597,18 +588,27 @@ namespace Warenikov\McpBitrix\Tests\Unit {
             $this->assertEquals('INFO', \CEventLog::$addCalls[0]['SEVERITY']);
         }
 
-        public function testClearEventLogCallsClearByDate(): void
+        public function testClearEventLogExecutesSql(): void
         {
+            \Bitrix\Main\Application::resetConnection();
+
             $result = $this->tools->clearEventLog(['older_than_days' => 7]);
             $this->assertTrue($result['success']);
-            $this->assertCount(1, \CEventLog::$clearCalls);
+
+            $queries = \Bitrix\Main\DB\FakeConnection::$queries;
+            $this->assertCount(1, $queries);
+            $this->assertStringContainsString('DELETE FROM b_event_log', $queries[0]['sql']);
         }
 
         public function testClearEventLogDefaultIs30Days(): void
         {
+            \Bitrix\Main\Application::resetConnection();
+
             $this->tools->clearEventLog([]);
-            $expected = date('d.m.Y', strtotime('-30 days'));
-            $this->assertEquals($expected, \CEventLog::$clearCalls[0]);
+
+            $sql = \Bitrix\Main\DB\FakeConnection::$queries[0]['sql'];
+            $expected = date('Y-m-d', strtotime('-30 days'));
+            $this->assertStringContainsString($expected, $sql);
         }
     }
 
@@ -681,6 +681,7 @@ namespace Warenikov\McpBitrix\Tests\Unit {
                 'event_name' => 'NEW_USER',
                 'subject'    => 'Welcome #NAME#',
                 'body'       => '<p>Hello</p>',
+                'to'         => '#EMAIL#',
             ]);
 
             $this->assertTrue($result['success']);
@@ -711,7 +712,7 @@ namespace Warenikov\McpBitrix\Tests\Unit {
 
         public function testAddMailTemplateDefaultBodyTypeIsHtml(): void
         {
-            $this->tools->addMailTemplate(['event_name' => 'X', 'subject' => 'S', 'body' => 'B']);
+            $this->tools->addMailTemplate(['event_name' => 'X', 'subject' => 'S', 'body' => 'B', 'to' => 'admin@example.com']);
             $this->assertEquals('html', \CEventMessage::$addCalls[0]['BODY_TYPE']);
         }
 
@@ -719,7 +720,7 @@ namespace Warenikov\McpBitrix\Tests\Unit {
         {
             \CEventMessage::$opResult = false;
             $this->expectException(\RuntimeException::class);
-            $this->tools->addMailTemplate(['event_name' => 'X', 'subject' => 'S', 'body' => 'B']);
+            $this->tools->addMailTemplate(['event_name' => 'X', 'subject' => 'S', 'body' => 'B', 'to' => 'admin@example.com']);
         }
 
         public function testUpdateMailTemplateCallsUpdate(): void

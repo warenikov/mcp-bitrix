@@ -78,16 +78,16 @@ class MailEventTools
             inputSchema: [
                 'type'       => 'object',
                 'properties' => [
-                    'event_name' => ['type' => 'string', 'description' => 'Символьный код события (EVENT_NAME)'],
-                    'subject'    => ['type' => 'string', 'description' => 'Тема письма (может содержать макросы #FIELD#)'],
-                    'body'       => ['type' => 'string', 'description' => 'Тело письма (HTML или текст)'],
-                    'body_type'  => ['type' => 'string', 'description' => 'Тип: html или text (по умолчанию html)'],
-                    'from'       => ['type' => 'string', 'description' => 'Поле FROM (по умолчанию #DEFAULT_EMAIL_FROM#)'],
-                    'to'         => ['type' => 'string', 'description' => 'Поле TO'],
+                    'event_name' => ['type' => 'string',  'description' => 'Символьный код события (EVENT_NAME)'],
+                    'subject'    => ['type' => 'string',  'description' => 'Тема письма (может содержать макросы #FIELD#)'],
+                    'body'       => ['type' => 'string',  'description' => 'Тело письма (HTML или текст)'],
+                    'to'         => ['type' => 'string',  'description' => 'Поле TO — адрес получателя или макрос'],
+                    'body_type'  => ['type' => 'string',  'description' => 'Тип: html или text (по умолчанию html)'],
+                    'from'       => ['type' => 'string',  'description' => 'Поле FROM (по умолчанию #DEFAULT_EMAIL_FROM#)'],
                     'active'     => ['type' => 'boolean', 'description' => 'Активен (по умолчанию true)'],
                     'site_id'    => ['type' => 'array',   'description' => 'Массив ID сайтов (по умолчанию ["s1"])'],
                 ],
-                'required' => ['event_name', 'subject', 'body'],
+                'required' => ['event_name', 'subject', 'body', 'to'],
             ],
             handler: [$self, 'addMailTemplate'],
             mutating: true
@@ -99,14 +99,14 @@ class MailEventTools
             inputSchema: [
                 'type'       => 'object',
                 'properties' => [
-                    'id'         => ['type' => 'integer', 'description' => 'ID шаблона'],
-                    'subject'    => ['type' => 'string',  'description' => 'Тема письма'],
-                    'body'       => ['type' => 'string',  'description' => 'Тело письма'],
-                    'body_type'  => ['type' => 'string',  'description' => 'Тип: html или text'],
-                    'from'       => ['type' => 'string',  'description' => 'Поле FROM'],
-                    'to'         => ['type' => 'string',  'description' => 'Поле TO'],
-                    'active'     => ['type' => 'boolean', 'description' => 'Активен'],
-                    'site_id'    => ['type' => 'array',   'description' => 'Массив ID сайтов'],
+                    'id'        => ['type' => 'integer', 'description' => 'ID шаблона'],
+                    'subject'   => ['type' => 'string',  'description' => 'Тема письма'],
+                    'body'      => ['type' => 'string',  'description' => 'Тело письма'],
+                    'body_type' => ['type' => 'string',  'description' => 'Тип: html или text'],
+                    'from'      => ['type' => 'string',  'description' => 'Поле FROM'],
+                    'to'        => ['type' => 'string',  'description' => 'Поле TO'],
+                    'active'    => ['type' => 'boolean', 'description' => 'Активен'],
+                    'site_id'   => ['type' => 'array',   'description' => 'Массив ID сайтов'],
                 ],
                 'required' => ['id'],
             ],
@@ -155,14 +155,14 @@ class MailEventTools
         $lang      = $args['lang'] ?? 'ru';
         $eventName = $args['event_name'];
 
-        $rs  = \CEventType::GetList([], ['LID' => $lang, 'EVENT_NAME' => $eventName]);
-        $row = $rs->Fetch();
-
-        if (!$row) {
-            throw new \RuntimeException("Тип события «{$eventName}» не найден");
+        $rs = \CEventType::GetList(['MODULE_ID' => 'ASC'], ['LID' => $lang]);
+        while ($row = $rs->Fetch()) {
+            if ($row['EVENT_NAME'] === $eventName) {
+                return $row;
+            }
         }
 
-        return $row;
+        throw new \RuntimeException("Тип события «{$eventName}» не найден");
     }
 
     // ── Шаблоны ───────────────────────────────────────────────────────────────
@@ -176,7 +176,7 @@ class MailEventTools
         $result = [];
         $count  = 0;
         while ($row = $rs->Fetch()) {
-            $result[] = $row;
+            $result[] = $this->normalizeRow($row);
             if (++$count >= $limit) {
                 break;
             }
@@ -194,7 +194,7 @@ class MailEventTools
             throw new \RuntimeException("Шаблон с ID {$args['id']} не найден");
         }
 
-        return $row;
+        return $this->normalizeRow($row);
     }
 
     public function addMailTemplate(array $args): array
@@ -204,7 +204,7 @@ class MailEventTools
             'LID'        => $args['site_id'] ?? ['s1'],
             'ACTIVE'     => ($args['active'] ?? true) ? 'Y' : 'N',
             'EMAIL_FROM' => $args['from'] ?? '#DEFAULT_EMAIL_FROM#',
-            'EMAIL_TO'   => $args['to'] ?? '',
+            'EMAIL_TO'   => $args['to'],
             'SUBJECT'    => $args['subject'],
             'MESSAGE'    => $args['body'],
             'BODY_TYPE'  => strtolower($args['body_type'] ?? 'html') === 'text' ? 'text' : 'html',
@@ -244,5 +244,15 @@ class MailEventTools
         $result = \CEventMessage::Delete((int) $args['id']);
 
         return ['success' => (bool) $result];
+    }
+
+    private function normalizeRow(array $row): array
+    {
+        foreach ($row as $key => $value) {
+            if ($value instanceof \Bitrix\Main\Type\DateTime || $value instanceof \Bitrix\Main\Type\Date) {
+                $row[$key] = $value->format('Y-m-d H:i:s');
+            }
+        }
+        return $row;
     }
 }
