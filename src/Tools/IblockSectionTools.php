@@ -70,10 +70,9 @@ class IblockSectionTools
             inputSchema: [
                 'type'       => 'object',
                 'properties' => [
-                    'id'        => ['type' => 'integer', 'description' => 'ID секции'],
-                    'iblock_id' => ['type' => 'integer', 'description' => 'ID инфоблока'],
+                    'id' => ['type' => 'integer', 'description' => 'ID секции'],
                 ],
-                'required'   => ['id', 'iblock_id'],
+                'required'   => ['id'],
             ],
             handler: [$self, 'deleteSection'],
             mutating: true

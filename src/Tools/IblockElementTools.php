@@ -126,7 +126,7 @@ class IblockElementTools
         while ($row = $rs->GetNext()) {
             if (!empty($args['with_props'])) {
                 $props = [];
-                $propRs = \CIBlockElement::GetProperty((int) $args['iblock_id'], $row['ID'], [], []);
+                $propRs = \CIBlockElement::GetProperty((int) $args['iblock_id'], $row['ID']);
                 while ($prop = $propRs->Fetch()) {
                     $props[$prop['CODE']] = $prop['VALUE'];
                 }

@@ -47,6 +47,7 @@ class IblockTools
                     'description' => ['type' => 'string',  'description' => 'Описание (опционально)'],
                     'sort'        => ['type' => 'integer', 'description' => 'Сортировка (по умолчанию 500)'],
                     'active'      => ['type' => 'boolean', 'description' => 'Активен (по умолчанию true)'],
+                    'site_id'     => ['type' => 'string',  'description' => 'ID сайта для привязки (по умолчанию s1)'],
                 ],
                 'required'   => ['name', 'code', 'type'],
             ],
@@ -131,6 +132,7 @@ class IblockTools
             'IBLOCK_TYPE_ID' => $args['type'],
             'DESCRIPTION'    => $args['description'] ?? '',
             'SORT'           => $args['sort'] ?? 500,
+            'SITE_ID'        => $args['site_id'] ?? 's1',
             'LIST_PAGE_URL'  => '',
             'DETAIL_PAGE_URL'=> '',
         ];
