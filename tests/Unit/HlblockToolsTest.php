@@ -3,18 +3,66 @@
 declare(strict_types=1);
 
 // =============================================================================
-// Stubs глобального неймспейса (CUserTypeEntity)
+// Stubs глобального неймспейса
 // =============================================================================
 
 namespace {
+
+    class FakeOldResult
+    {
+        private array $rows;
+        private int   $pos = 0;
+
+        public function __construct(array $rows)
+        {
+            $this->rows = $rows;
+        }
+
+        public function GetNext(): array|false
+        {
+            return $this->rows[$this->pos++] ?? false;
+        }
+    }
+
+    class FakeException
+    {
+        public function __construct(private string $message) {}
+        public function GetString(): string { return $this->message; }
+    }
+
+    class FakeApplication
+    {
+        private static ?FakeException $exception = null;
+
+        public static function setException(?FakeException $e): void
+        {
+            self::$exception = $e;
+        }
+
+        public function GetException(): ?FakeException
+        {
+            return self::$exception;
+        }
+
+        public static function reset(): void
+        {
+            self::$exception = null;
+        }
+    }
+
+    // Инициализируем $GLOBALS['APPLICATION'] один раз
+    $GLOBALS['APPLICATION'] = new FakeApplication();
+
     class CUserTypeEntity
     {
-        public static array  $addCalls    = [];
-        public static array  $updateCalls = [];
-        public static array  $deleteCalls = [];
-        public static int|false $addReturn   = 1;
-        public static bool   $updateReturn = true;
-        public static bool   $deleteReturn = true;
+        public static array      $addCalls     = [];
+        public static array      $updateCalls  = [];
+        public static array      $deleteCalls  = [];
+        public static array      $getListCalls = [];
+        public static array      $getListRows  = [];
+        public static int|false  $addReturn    = 1;
+        public static bool       $updateReturn = true;
+        public static bool       $deleteReturn = true;
         public string $LAST_ERROR = '';
 
         public function Add(array $fields): int|false
@@ -35,12 +83,20 @@ namespace {
             return self::$deleteReturn;
         }
 
+        public function GetList(array $order, array $filter): FakeOldResult
+        {
+            self::$getListCalls[] = ['order' => $order, 'filter' => $filter];
+            return new FakeOldResult(self::$getListRows);
+        }
+
         public static function reset(): void
         {
-            self::$addCalls    = [];
-            self::$updateCalls = [];
-            self::$deleteCalls = [];
-            self::$addReturn   = 1;
+            self::$addCalls     = [];
+            self::$updateCalls  = [];
+            self::$deleteCalls  = [];
+            self::$getListCalls = [];
+            self::$getListRows  = [];
+            self::$addReturn    = 1;
             self::$updateReturn = true;
             self::$deleteReturn = true;
         }
@@ -85,27 +141,9 @@ namespace Bitrix\Main {
             private array $errors = []
         ) {}
 
-        public function isSuccess(): bool       { return $this->success; }
-        public function getId(): int            { return $this->id; }
+        public function isSuccess(): bool         { return $this->success; }
+        public function getId(): int              { return $this->id; }
         public function getErrorMessages(): array { return $this->errors; }
-    }
-
-    class UserTypeTable
-    {
-        public static array $getListCalls = [];
-        public static array $rows         = [];
-
-        public static function getList(array $params): FakeQueryResult
-        {
-            self::$getListCalls[] = $params;
-            return new FakeQueryResult(self::$rows);
-        }
-
-        public static function reset(): void
-        {
-            self::$getListCalls = [];
-            self::$rows         = [];
-        }
     }
 }
 
@@ -130,13 +168,13 @@ namespace Bitrix\Highloadblock {
 
     class HighloadBlockTable
     {
-        public static array $addCalls    = [];
-        public static array $updateCalls = [];
-        public static array $deleteCalls = [];
-        public static array $rows        = [];
-        public static bool  $addSuccess  = true;
-        public static int   $addId       = 42;
-        public static string $dataClass  = '';
+        public static array  $addCalls    = [];
+        public static array  $updateCalls = [];
+        public static array  $deleteCalls = [];
+        public static array  $rows        = [];
+        public static bool   $addSuccess  = true;
+        public static int    $addId       = 42;
+        public static string $dataClass   = '';
 
         public static function getList(array $params = []): FakeQueryResult
         {
@@ -183,7 +221,6 @@ namespace Bitrix\Highloadblock {
             self::$dataClass   = '';
         }
     }
-
 }
 
 // =============================================================================
@@ -252,7 +289,6 @@ namespace Warenikov\McpBitrix\Tests\Unit {
 // =============================================================================
 
     use Bitrix\Highloadblock\HighloadBlockTable;
-    use Bitrix\Main\UserTypeTable;
     use PHPUnit\Framework\TestCase;
     use Warenikov\McpBitrix\Tools\HlblockTools;
 
@@ -265,8 +301,8 @@ namespace Warenikov\McpBitrix\Tests\Unit {
             $this->tools = new HlblockTools();
 
             \CUserTypeEntity::reset();
+            \FakeApplication::reset();
             HighloadBlockTable::reset();
-            UserTypeTable::reset();
             FakeHlDataManager::reset();
         }
 
@@ -291,7 +327,7 @@ namespace Warenikov\McpBitrix\Tests\Unit {
 
             $result = $this->tools->getHlblock(['id' => 5]);
 
-            $this->assertEquals(5, $result['ID']);
+            $this->assertEquals(5,      $result['ID']);
             $this->assertEquals('Tags', $result['NAME']);
         }
 
@@ -309,8 +345,8 @@ namespace Warenikov\McpBitrix\Tests\Unit {
 
             $this->assertCount(1, HighloadBlockTable::$addCalls);
             $fields = HighloadBlockTable::$addCalls[0];
-            $this->assertEquals('Products',       $fields['NAME']);
-            $this->assertEquals('b_hl_products',  $fields['TABLE_NAME']);
+            $this->assertEquals('Products',      $fields['NAME']);
+            $this->assertEquals('b_hl_products', $fields['TABLE_NAME']);
         }
 
         public function testCreateHlblockReturnsId(): void
@@ -338,7 +374,7 @@ namespace Warenikov\McpBitrix\Tests\Unit {
             $this->tools->updateHlblock(['id' => 3, 'name' => 'NewName']);
 
             $call = HighloadBlockTable::$updateCalls[0];
-            $this->assertEquals(3, $call['id']);
+            $this->assertEquals(3,         $call['id']);
             $this->assertEquals('NewName', $call['fields']['NAME']);
             $this->assertArrayNotHasKey('TABLE_NAME', $call['fields']);
         }
@@ -352,12 +388,25 @@ namespace Warenikov\McpBitrix\Tests\Unit {
 
         // ─── Поля ─────────────────────────────────────────────────────────────
 
-        public function testListFieldsFiltersbyEntityId(): void
+        public function testListFieldsCallsGetListWithEntityId(): void
         {
             $this->tools->listFields(['hlblock_id' => 3]);
 
-            $filter = UserTypeTable::$getListCalls[0]['filter'];
-            $this->assertEquals('HLBLOCK_3', $filter['=ENTITY_ID']);
+            $this->assertCount(1, \CUserTypeEntity::$getListCalls);
+            $this->assertEquals('HLBLOCK_3', \CUserTypeEntity::$getListCalls[0]['filter']['ENTITY_ID']);
+        }
+
+        public function testListFieldsReturnsRows(): void
+        {
+            \CUserTypeEntity::$getListRows = [
+                ['ID' => 1, 'FIELD_NAME' => 'UF_NAME'],
+                ['ID' => 2, 'FIELD_NAME' => 'UF_SORT'],
+            ];
+
+            $result = $this->tools->listFields(['hlblock_id' => 3]);
+
+            $this->assertCount(2, $result);
+            $this->assertEquals('UF_NAME', $result[0]['FIELD_NAME']);
         }
 
         public function testAddFieldBuildsEntityId(): void
@@ -385,7 +434,7 @@ namespace Warenikov\McpBitrix\Tests\Unit {
             $this->assertEquals('double',   $fields['USER_TYPE_ID']);
         }
 
-        public function testAddFieldConvertsBooleanMultipleToYN(): void
+        public function testAddFieldConvertsBooleanFlagsToYN(): void
         {
             $this->tools->addField([
                 'hlblock_id' => 5,
@@ -438,7 +487,7 @@ namespace Warenikov\McpBitrix\Tests\Unit {
             $this->assertEquals('Название', $fields['EDIT_FORM_LABEL']['en']);
         }
 
-public function testAddFieldReturnsFieldId(): void
+        public function testAddFieldReturnsFieldId(): void
         {
             \CUserTypeEntity::$addReturn = 15;
 
@@ -452,7 +501,22 @@ public function testAddFieldReturnsFieldId(): void
             $this->assertEquals(15, $result['field_id']);
         }
 
-        public function testAddFieldReturnsErrorWhenUserTypeEntityFails(): void
+        public function testAddFieldReturnsApplicationExceptionOnFailure(): void
+        {
+            \CUserTypeEntity::$addReturn = false;
+            \FakeApplication::setException(new \FakeException('Field already exists'));
+
+            $result = $this->tools->addField([
+                'hlblock_id' => 5,
+                'field_name' => 'UF_NAME',
+                'type'       => 'string',
+            ]);
+
+            $this->assertFalse($result['success']);
+            $this->assertEquals('Field already exists', $result['error']);
+        }
+
+        public function testAddFieldReturnsFallbackMessageWhenNoException(): void
         {
             \CUserTypeEntity::$addReturn = false;
 
@@ -463,12 +527,12 @@ public function testAddFieldReturnsFieldId(): void
             ]);
 
             $this->assertFalse($result['success']);
-            $this->assertArrayHasKey('error', $result);
+            $this->assertStringContainsString('duplicate', $result['error']);
         }
 
         public function testUpdateFieldFetchesFieldByEntityIdAndName(): void
         {
-            UserTypeTable::$rows = [['ID' => 7, 'ENTITY_ID' => 'HLBLOCK_3', 'FIELD_NAME' => 'UF_NAME']];
+            \CUserTypeEntity::$getListRows = [['ID' => 7, 'FIELD_NAME' => 'UF_NAME']];
 
             $this->tools->updateField([
                 'hlblock_id' => 3,
@@ -476,14 +540,14 @@ public function testAddFieldReturnsFieldId(): void
                 'label'      => 'Новое название',
             ]);
 
-            $filter = UserTypeTable::$getListCalls[0]['filter'];
-            $this->assertEquals('HLBLOCK_3', $filter['=ENTITY_ID']);
-            $this->assertEquals('UF_NAME',   $filter['=FIELD_NAME']);
+            $filter = \CUserTypeEntity::$getListCalls[0]['filter'];
+            $this->assertEquals('HLBLOCK_3', $filter['ENTITY_ID']);
+            $this->assertEquals('UF_NAME',   $filter['FIELD_NAME']);
         }
 
-        public function testUpdateFieldPassesLabelToUserTypeEntity(): void
+        public function testUpdateFieldPassesLabelToUpdate(): void
         {
-            UserTypeTable::$rows = [['ID' => 7, 'ENTITY_ID' => 'HLBLOCK_3', 'FIELD_NAME' => 'UF_NAME']];
+            \CUserTypeEntity::$getListRows = [['ID' => 7, 'FIELD_NAME' => 'UF_NAME']];
 
             $this->tools->updateField([
                 'hlblock_id' => 3,
@@ -492,7 +556,7 @@ public function testAddFieldReturnsFieldId(): void
             ]);
 
             $call = \CUserTypeEntity::$updateCalls[0];
-            $this->assertEquals(7,               $call['id']);
+            $this->assertEquals(7,                $call['id']);
             $this->assertEquals('Новое название', $call['fields']['EDIT_FORM_LABEL']['ru']);
         }
 
@@ -506,7 +570,7 @@ public function testAddFieldReturnsFieldId(): void
 
         public function testDeleteFieldFetchesFieldThenCallsDelete(): void
         {
-            UserTypeTable::$rows = [['ID' => 12, 'ENTITY_ID' => 'HLBLOCK_3', 'FIELD_NAME' => 'UF_CODE']];
+            \CUserTypeEntity::$getListRows = [['ID' => 12, 'FIELD_NAME' => 'UF_CODE']];
 
             $this->tools->deleteField(['hlblock_id' => 3, 'field_name' => 'UF_CODE']);
 
@@ -531,7 +595,6 @@ public function testAddFieldReturnsFieldId(): void
         public function testListElementsPassesFilterAndPagination(): void
         {
             $this->prepareDataManager();
-            FakeHlDataManager::$rows = [['ID' => 1, 'UF_NAME' => 'Foo']];
 
             $this->tools->listElements([
                 'hlblock_id' => 1,

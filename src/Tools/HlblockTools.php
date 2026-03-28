@@ -4,7 +4,6 @@ namespace Warenikov\McpBitrix\Tools;
 
 use Bitrix\Highloadblock\HighloadBlockTable;
 use Bitrix\Main\Loader;
-use Bitrix\Main\UserTypeTable;
 use Warenikov\McpBitrix\Server;
 
 class HlblockTools
@@ -319,11 +318,9 @@ class HlblockTools
         $entityId = 'HLBLOCK_' . (int) $args['hlblock_id'];
 
         $result = [];
-        $rs = UserTypeTable::getList([
-            'filter' => ['=ENTITY_ID' => $entityId],
-            'order'  => ['SORT' => 'ASC'],
-        ]);
-        while ($row = $rs->fetch()) {
+        $uft = new \CUserTypeEntity();
+        $rs  = $uft->GetList(['SORT' => 'ASC'], ['ENTITY_ID' => $entityId]);
+        while ($row = $rs->GetNext()) {
             $result[] = $row;
         }
 
@@ -356,7 +353,9 @@ class HlblockTools
         ]);
 
         if (!$fieldId) {
-            return ['success' => false, 'error' => $uft->LAST_ERROR];
+            $exception = $GLOBALS['APPLICATION']->GetException();
+            $error = $exception ? $exception->GetString() : ($uft->LAST_ERROR ?: 'Unknown error (possibly duplicate field name)');
+            return ['success' => false, 'error' => $error];
         }
 
         return ['success' => true, 'field_id' => (int) $fieldId];
@@ -368,9 +367,8 @@ class HlblockTools
 
         $entityId = 'HLBLOCK_' . (int) $args['hlblock_id'];
 
-        $fieldRow = UserTypeTable::getList([
-            'filter' => ['=ENTITY_ID' => $entityId, '=FIELD_NAME' => $args['field_name']],
-        ])->fetch();
+        $uft      = new \CUserTypeEntity();
+        $fieldRow = $uft->GetList([], ['ENTITY_ID' => $entityId, 'FIELD_NAME' => $args['field_name']])->GetNext();
 
         if (!$fieldRow) {
             throw new \RuntimeException("Поле {$args['field_name']} не найдено в блоке {$args['hlblock_id']}");
@@ -386,7 +384,6 @@ class HlblockTools
             $fields['LIST_FILTER_LABEL'] = ['ru' => $label, 'en' => $label];
         }
 
-        $uft    = new \CUserTypeEntity();
         $result = $uft->Update((int) $fieldRow['ID'], $fields);
 
         if (!$result) {
@@ -402,15 +399,13 @@ class HlblockTools
 
         $entityId = 'HLBLOCK_' . (int) $args['hlblock_id'];
 
-        $fieldRow = UserTypeTable::getList([
-            'filter' => ['=ENTITY_ID' => $entityId, '=FIELD_NAME' => $args['field_name']],
-        ])->fetch();
+        $uft      = new \CUserTypeEntity();
+        $fieldRow = $uft->GetList([], ['ENTITY_ID' => $entityId, 'FIELD_NAME' => $args['field_name']])->GetNext();
 
         if (!$fieldRow) {
             throw new \RuntimeException("Поле {$args['field_name']} не найдено в блоке {$args['hlblock_id']}");
         }
 
-        $uft    = new \CUserTypeEntity();
         $result = $uft->Delete((int) $fieldRow['ID']);
 
         if (!$result) {
