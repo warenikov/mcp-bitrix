@@ -258,7 +258,7 @@ namespace Bitrix\Main\Config {
                 $prefix = "{$module}.";
                 foreach (self::$store as $key => $value) {
                     if (str_starts_with($key, $prefix)) {
-                        $result[] = ['NAME' => substr($key, strlen($prefix)), 'VALUE' => $value];
+                        $result[substr($key, strlen($prefix))] = $value;
                     }
                 }
                 return $result;

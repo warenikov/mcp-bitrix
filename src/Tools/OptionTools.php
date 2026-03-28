@@ -118,8 +118,12 @@ class OptionTools
         $moduleId = $args['module_id'];
         $siteId   = $args['site_id'] ?? '';
 
-        $options = \Bitrix\Main\Config\Option::getForModule($moduleId, $siteId);
+        $raw    = \Bitrix\Main\Config\Option::getForModule($moduleId, $siteId);
+        $result = [];
+        foreach ($raw as $name => $value) {
+            $result[] = ['NAME' => $name, 'VALUE' => $value];
+        }
 
-        return $options;
+        return $result;
     }
 }
