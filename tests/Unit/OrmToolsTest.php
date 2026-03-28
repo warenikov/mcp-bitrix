@@ -428,7 +428,7 @@ namespace Warenikov\McpBitrix\Tests\Unit {
             $this->assertInstanceOf(\Bitrix\Main\ORM\Fields\StringField::class,   $fields['F2']);
             $this->assertInstanceOf(\Bitrix\Main\ORM\Fields\TextField::class,     $fields['F3']);
             $this->assertInstanceOf(\Bitrix\Main\ORM\Fields\FloatField::class,    $fields['F4']);
-            $this->assertInstanceOf(\Bitrix\Main\ORM\Fields\BooleanField::class,  $fields['F5']);
+            $this->assertInstanceOf(\Bitrix\Main\ORM\Fields\StringField::class,   $fields['F5']); // boolean uses StringField(size=1)
             $this->assertInstanceOf(\Bitrix\Main\ORM\Fields\DateField::class,     $fields['F6']);
             $this->assertInstanceOf(\Bitrix\Main\ORM\Fields\DatetimeField::class, $fields['F7']);
         }

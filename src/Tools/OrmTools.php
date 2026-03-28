@@ -469,7 +469,6 @@ class OrmTools
                 throw new \RuntimeException("Неизвестный тип поля: {$type}. Доступны: " . implode(', ', array_keys(self::FIELD_TYPES)));
             }
 
-            $class = self::FIELD_TYPES[$type];
             $params = [];
 
             if (!empty($fieldDef['primary']))      $params['primary']      = true;
@@ -477,7 +476,15 @@ class OrmTools
             if (!empty($fieldDef['required']))      $params['required']     = true;
             if (!empty($fieldDef['size']))          $params['size']         = (int) $fieldDef['size'];
 
-            $ormFields[$name] = new $class($name, $params);
+            // BooleanField в динамически компилируемых сущностях не вызывает
+            // convertValueToDb() — используем StringField(size=1) со значениями 'Y'/'N',
+            // которые normalizeValues подставляет явно перед сохранением.
+            if ($type === 'boolean') {
+                $params['size'] = 1;
+                $ormFields[$name] = new StringField($name, $params);
+            } else {
+                $ormFields[$name] = new (self::FIELD_TYPES[$type])($name, $params);
+            }
         }
 
         return $ormFields;
