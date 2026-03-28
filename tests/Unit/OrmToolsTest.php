@@ -629,10 +629,10 @@ namespace Warenikov\McpBitrix\Tests\Unit {
                 'fields'      => ['ACTIVE' => true],
             ]);
 
-            $this->assertEquals('Y', FakeOrmDataManager::$addCalls[0]['ACTIVE']);
+            $this->assertTrue(FakeOrmDataManager::$addCalls[0]['ACTIVE']);
         }
 
-        public function testOrmAddConvertsBooleanFalseToN(): void
+        public function testOrmAddConvertsBooleanFalseToPhpFalse(): void
         {
             FakeConnection::$queryRows = [['ID' => 1, 'ENTITY_NAME' => 'Items', 'TABLE_NAME' => 'b_items',
                 'FIELDS' => '[{"name":"ID","type":"integer","primary":true,"autocomplete":true},{"name":"ACTIVE","type":"boolean"}]']];
@@ -643,7 +643,7 @@ namespace Warenikov\McpBitrix\Tests\Unit {
                 'fields'      => ['ACTIVE' => false],
             ]);
 
-            $this->assertEquals('N', FakeOrmDataManager::$addCalls[0]['ACTIVE']);
+            $this->assertFalse(FakeOrmDataManager::$addCalls[0]['ACTIVE']);
         }
 
         public function testOrmUpdateConvertsDatetimeAndBoolean(): void
@@ -660,7 +660,7 @@ namespace Warenikov\McpBitrix\Tests\Unit {
 
             $fields = FakeOrmDataManager::$updateCalls[0]['fields'];
             $this->assertInstanceOf(\Bitrix\Main\Type\DateTime::class, $fields['START_AT']);
-            $this->assertEquals('Y', $fields['ACTIVE']);
+            $this->assertTrue($fields['ACTIVE']);
         }
     }
 }

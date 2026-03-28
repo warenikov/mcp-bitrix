@@ -17,6 +17,9 @@ class OrmTools
 {
     private const REGISTRY_TABLE = 'b_mcp_orm_registry';
 
+    /** @var array<string, string> кэш entityName → dataClass FQCN */
+    private array $compiledClasses = [];
+
     private const FIELD_TYPES = [
         'integer'  => IntegerField::class,
         'string'   => StringField::class,
@@ -212,6 +215,7 @@ class OrmTools
         // Компилируем entity и создаём таблицу
         $ormFields = $this->buildOrmFields($fields);
         $entity    = Entity::compileEntity($entityName, $ormFields, ['table_name' => $tableName]);
+        $this->compiledClasses[$entityName] = $entity->getDataClass();
         $entity->createDbTable();
 
         // Сохраняем в реестре
@@ -269,6 +273,8 @@ class OrmTools
             $conn->getSqlHelper()->forSql($args['entity_name']) . "'"
         );
 
+        unset($this->compiledClasses[$args['entity_name']]);
+
         return ['success' => true];
     }
 
@@ -318,7 +324,7 @@ class OrmTools
         $result = $dataClass::add($this->normalizeValues($args['fields'], $fieldDefs));
 
         if ($result->isSuccess()) {
-            return ['success' => true, 'id' => $result->getId()];
+            return ['success' => true, 'id' => (int) $result->getId()];
         }
 
         return ['success' => false, 'errors' => $result->getErrorMessages()];
@@ -399,17 +405,16 @@ class OrmTools
 
         $fieldDefs = json_decode($row['FIELDS'], true);
 
-        // Если класс уже скомпилирован в этом процессе — не вызываем compileEntity повторно,
-        // повторный eval() вызывает PHP fatal "Cannot declare class, already in use".
-        if (class_exists($entityName . 'Table', false)) {
-            return [$entityName . 'Table', $fieldDefs];
+        // Используем кэш, чтобы не вызывать compileEntity повторно в том же процессе.
+        // Повторный eval() вызывает PHP fatal "Cannot declare class, already in use".
+        if (!isset($this->compiledClasses[$entityName])) {
+            $entity = Entity::compileEntity($entityName, $this->buildOrmFields($fieldDefs), [
+                'table_name' => $row['TABLE_NAME'],
+            ]);
+            $this->compiledClasses[$entityName] = $entity->getDataClass();
         }
 
-        $entity = Entity::compileEntity($entityName, $this->buildOrmFields($fieldDefs), [
-            'table_name' => $row['TABLE_NAME'],
-        ]);
-
-        return [$entity->getDataClass(), $fieldDefs];
+        return [$this->compiledClasses[$entityName], $fieldDefs];
     }
 
     private function normalizeValues(array $values, array $fieldDefs): array
@@ -437,7 +442,13 @@ class OrmTools
                     ? $value
                     : \Bitrix\Main\Type\Date::createFromPhp(new \DateTime((string) $value));
             } elseif ($type === 'boolean') {
-                $result[$key] = ($value === true || $value === 1 || strtoupper((string) $value) === 'Y') ? 'Y' : 'N';
+                // Передаём PHP bool — Bitrix BooleanField принимает его нативно
+                // и сохраняет как 'Y'/'N' согласно своей конфигурации values
+                if (is_string($value)) {
+                    $result[$key] = strtoupper($value) === 'Y' || $value === '1' || $value === 'true';
+                } else {
+                    $result[$key] = (bool) $value;
+                }
             } else {
                 $result[$key] = $value;
             }
