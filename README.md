@@ -234,6 +234,49 @@ curl -sL https://raw.githubusercontent.com/warenikov/mcp-bitrix/main/install.sh 
 $rows = ProductLogTable::getList(['filter' => ['ACTIVE' => 'Y']])->fetchAll();
 ```
 
+### Агенты
+| Инструмент | Описание |
+|---|---|
+| `list_agents` | Список агентов с фильтром |
+| `get_agent` | Получить агент по ID |
+| `add_agent` | Создать агент |
+| `update_agent` | Обновить агент |
+| `delete_agent` | Удалить агент |
+| `run_agent` | Запланировать немедленный запуск (устанавливает NEXT_EXEC = сейчас) |
+
+### Кэш
+| Инструмент | Описание |
+|---|---|
+| `clear_cache` | Очистить managed cache (полностью или по тегу) |
+| `clear_menu_cache` | Удалить файлы кэша меню `.menu_ex.php` |
+
+### Настройки модулей
+| Инструмент | Описание |
+|---|---|
+| `get_option` | Получить значение настройки модуля |
+| `set_option` | Установить значение настройки модуля |
+| `delete_option` | Удалить настройку |
+| `list_options` | Список всех настроек модуля |
+
+### Журнал событий
+| Инструмент | Описание |
+|---|---|
+| `list_event_log` | Список записей журнала событий |
+| `get_event_log` | Получить запись по ID |
+| `add_event_log` | Добавить запись в журнал |
+| `clear_event_log` | Удалить записи старше N дней (по умолчанию 30) |
+
+### Почтовые события
+| Инструмент | Описание |
+|---|---|
+| `list_mail_event_types` | Список типов почтовых событий |
+| `get_mail_event_type` | Получить тип по символьному коду |
+| `list_mail_templates` | Список шаблонов писем |
+| `get_mail_template` | Получить шаблон по ID |
+| `add_mail_template` | Создать шаблон |
+| `update_mail_template` | Обновить шаблон |
+| `delete_mail_template` | Удалить шаблон |
+
 ---
 
 ## В разработке
@@ -242,7 +285,6 @@ $rows = ProductLogTable::getList(['filter' => ['ACTIVE' => 'Y']])->fetchAll();
 - **Каталог и магазин** — товары, цены, заказы
 - **CRM** — лиды, сделки, контакты
 - **Задачи и бизнес-процессы**
-- **Системные инструменты** — агенты, события, настройки модулей
 
 ---
 
@@ -265,6 +307,45 @@ Claude → MCP protocol (stdio) → docker run --rm -i -v /project:/var/www/html
 ```
 
 При каждом вызове инструмента Claude запускает одноразовый Docker-контейнер, который монтирует папку вашего проекта и напрямую обращается к ядру Битрикса. Никаких внешних зависимостей — MCP-протокол реализован без сторонних библиотек.
+
+## Разработка и тесты
+
+### Юнит-тесты
+
+Не требуют Битрикса — запускаются локально в Docker:
+
+```bash
+docker run --rm -v $(pwd):/app -w /app php:8.2-cli sh -c \
+  "php vendor/bin/phpunit tests/Unit"
+```
+
+Или если PHP установлен на хосте:
+
+```bash
+composer test
+```
+
+### Интеграционные тесты
+
+Запускаются внутри контейнера с реальным Битриксом. Требуется доступ к БД.
+
+```bash
+docker run --rm \
+  --network <сеть_проекта> \
+  -v /путь/к/битриксу:/var/www/html \
+  ghcr.io/warenikov/mcp-bitrix:latest \
+  php vendor/bin/phpunit -c phpunit-integration.xml
+```
+
+### Пересборка образа после изменений
+
+```bash
+docker build -t mcp-bitrix:local .
+```
+
+После этого выполните `/mcp reconnect bitrix` в Claude Code — новый образ подхватится автоматически.
+
+---
 
 ## Лицензия
 
