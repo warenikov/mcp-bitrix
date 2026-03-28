@@ -308,6 +308,50 @@ Claude → MCP protocol (stdio) → docker run --rm -i -v /project:/var/www/html
 
 При каждом вызове инструмента Claude запускает одноразовый Docker-контейнер, который монтирует папку вашего проекта и напрямую обращается к ядру Битрикса. Никаких внешних зависимостей — MCP-протокол реализован без сторонних библиотек.
 
+## Разработка и тесты
+
+### Юнит-тесты
+
+Не требуют Битрикса — запускаются локально в Docker:
+
+```bash
+docker run --rm -v $(pwd):/app -w /app php:8.2-cli sh -c \
+  "php vendor/bin/phpunit tests/Unit"
+```
+
+Или если PHP установлен на хосте:
+
+```bash
+composer test
+```
+
+### Интеграционные тесты
+
+Запускаются внутри контейнера с реальным Битриксом. Нужен собранный образ `mcp-bitrix:local` и доступ к БД.
+
+```bash
+# Сборка локального образа
+docker build -t mcp-bitrix:local .
+
+# Запуск интеграционных тестов
+docker run --rm \
+  --network <сеть_проекта> \
+  -v /путь/к/битриксу:/var/www/html \
+  -e BITRIX_DOCUMENT_ROOT=/var/www/html \
+  mcp-bitrix:local \
+  php vendor/bin/phpunit -c phpunit-integration.xml
+```
+
+### Пересборка образа после изменений
+
+```bash
+docker build -t mcp-bitrix:local .
+```
+
+После этого выполните `/mcp reconnect bitrix` в Claude Code — новый образ подхватится автоматически.
+
+---
+
 ## Лицензия
 
 MIT
